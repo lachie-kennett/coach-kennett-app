@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NewProgramForm } from "@/components/programs/new-program-form";
 
 export default async function NewProgramPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single();
   if (profile?.role !== "coach") redirect("/home");
 
   return (

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { ProgramBuilder } from "@/components/programs/program-builder";
@@ -9,16 +10,15 @@ import type { Profile, Program } from "@/lib/types";
 
 export default async function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: profileData } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const admin = createAdminClient();
+  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
   const profile = profileData as Pick<Profile, "role"> | null;
   if (profile?.role !== "coach") redirect("/home");
 
-  const { data: programData } = await supabase
+  const { data: programData } = await admin
     .from("programs")
     .select("*")
     .eq("id", id)
@@ -28,7 +28,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   const program = programData as Program | null;
   if (!program) notFound();
 
-  const { data: workoutsData } = await supabase
+  const { data: workoutsData } = await admin
     .from("program_workouts")
     .select(`
       id, program_id, name, day_order,
@@ -40,7 +40,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
     .eq("program_id", id)
     .order("day_order");
 
-  const { data: exercisesData } = await supabase
+  const { data: exercisesData } = await admin
     .from("exercises")
     .select("id, name, muscle_groups, youtube_url")
     .eq("coach_id", user.id)

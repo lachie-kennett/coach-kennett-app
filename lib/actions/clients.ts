@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
 
 export type ImportRow = {
   name: string;
@@ -28,8 +28,7 @@ function generateTempPassword(): string {
 }
 
 export async function importClients(rows: ImportRow[]): Promise<ImportResult[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error("Not authenticated");
 
   const admin = createAdminClient();

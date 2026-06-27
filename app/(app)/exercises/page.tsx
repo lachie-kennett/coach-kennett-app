@@ -1,17 +1,22 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ExerciseLibrary } from "@/components/exercises/exercise-library";
 
 export default async function ExercisesPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("role, coach_id").eq("id", user.id).single();
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role, coach_id")
+    .eq("id", user.id)
+    .single();
 
   const coachId = profile?.role === "coach" ? user.id : profile?.coach_id;
 
-  const { data: exercises } = await supabase
+  const { data: exercises } = await admin
     .from("exercises")
     .select("*")
     .eq("coach_id", coachId ?? "")

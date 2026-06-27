@@ -2,6 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/supabase/types";
 
+// Returns the current user from the session cookie — no network call.
+// Use this instead of supabase.auth.getUser() everywhere in server components.
+export async function getSessionUser() {
+  const client = await createClient();
+  const { data: { session } } = await client.auth.getSession();
+  return session?.user ?? null;
+}
+
 export async function createClient() {
   const cookieStore = await cookies();
 

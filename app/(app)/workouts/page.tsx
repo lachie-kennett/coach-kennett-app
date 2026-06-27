@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -13,15 +14,15 @@ type ProgramWithWorkouts = { id: string; name: string; program_workouts: Workout
 type AssignmentRow = { id: string; is_active: boolean; start_date: string; programs: ProgramWithWorkouts | null };
 
 export default async function WorkoutsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: profileData } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const admin = createAdminClient();
+  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
   const profile = profileData as Pick<Profile, "role"> | null;
   if (profile?.role === "coach") redirect("/programs");
 
-  const { data: assignmentsData } = await supabase
+  const { data: assignmentsData } = await admin
     .from("client_programs")
     .select("id, is_active, start_date, programs(id, name, program_workouts(id, name, day_order, workout_exercises(id)))")
     .eq("client_id", user.id)

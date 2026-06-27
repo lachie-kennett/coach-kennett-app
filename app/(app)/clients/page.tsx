@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowRight, Upload, UserPlus } from "lucide-react";
@@ -9,15 +10,15 @@ import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
 export default async function ClientsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: profileData } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const admin = createAdminClient();
+  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
   const profile = profileData as Pick<Profile, "role"> | null;
   if (profile?.role !== "coach") redirect("/home");
 
-  const { data: clientsData } = await supabase
+  const { data: clientsData } = await admin
     .from("profiles")
     .select("id, full_name, email, created_at")
     .eq("coach_id", user.id)

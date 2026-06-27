@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowRight, BookOpen, Plus } from "lucide-react";
@@ -8,15 +9,15 @@ import { cn } from "@/lib/utils";
 import type { Profile, Program } from "@/lib/types";
 
 export default async function ProgramsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: profileData } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const admin = createAdminClient();
+  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
   const profile = profileData as Pick<Profile, "role"> | null;
   if (profile?.role !== "coach") redirect("/home");
 
-  const { data: programsData } = await supabase
+  const { data: programsData } = await admin
     .from("programs")
     .select("id, name, description, created_at")
     .eq("coach_id", user.id)

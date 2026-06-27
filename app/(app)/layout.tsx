@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CoachNav } from "@/components/nav/coach-nav";
 import { ClientBottomNav } from "@/components/nav/client-bottom-nav";
@@ -8,11 +8,10 @@ import type { Database } from "@/lib/supabase/types";
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const admin = createAdminClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
+
+  const admin = createAdminClient();
 
   const { data: profile } = await admin
     .from("profiles")

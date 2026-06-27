@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +14,10 @@ type PRRow = Pick<PersonalRecord, "id" | "weight_kg" | "reps" | "achieved_at"> &
 };
 
 export default async function ProfilePage() {
-  const supabase = await createClient();
-  const admin = createAdminClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
+
+  const admin = createAdminClient();
 
   const { data: profileData } = await admin
     .from("profiles")

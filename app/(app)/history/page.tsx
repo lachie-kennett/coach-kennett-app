@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Dumbbell } from "lucide-react";
@@ -29,15 +30,15 @@ function formatDuration(start: string, end: string) {
 }
 
 export default async function HistoryPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: profileData } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const admin = createAdminClient();
+  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
   const profile = profileData as Pick<Profile, "role"> | null;
   if (profile?.role === "coach") redirect("/dashboard");
 
-  const { data: logsData } = await supabase
+  const { data: logsData } = await admin
     .from("workout_logs")
     .select(`
       id, started_at, completed_at,
