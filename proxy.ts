@@ -31,19 +31,19 @@ export async function proxy(request: NextRequest) {
   );
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
   const { pathname } = request.nextUrl;
 
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
   const isPublicPath = pathname === "/" || isAuthPage || pathname.startsWith("/auth/callback");
 
-  if (!user && !isPublicPath) {
+  if (!session && !isPublicPath) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (user && isAuthPage) {
+  if (session && isAuthPage) {
     return NextResponse.redirect(new URL("/redirect", request.url));
   }
 
