@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { WorkoutPlayer } from "@/components/workouts/workout-player";
 
@@ -15,11 +15,9 @@ type PrevSet = { workout_exercise_id: string; set_number: number; weight_kg: num
 export default async function StartWorkoutPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  // getSession() decodes JWT locally — no network call, no Headers.append risk
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) redirect("/login");
-  const userId = session.user.id;
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  const userId = user.id;
 
   const admin = createAdminClient();
 
