@@ -1,53 +1,29 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+// Project ref extracted from the Supabase URL (no @supabase/ssr — avoids the
+// cookie-chunk join bug on Vercel where anon key fragments form an invalid Bearer token)
+const PROJECT_REF = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "")
+  .replace("https://", "")
+  .split(".")[0];
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          const seen = new Set<string>();
-          return request.cookies.getAll().filter(c => {
-            if (seen.has(c.name)) return false;
-            seen.add(c.name);
-            return true;
-          });
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
   const isPublicPath = pathname === "/" || isAuthPage || pathname.startsWith("/auth/callback");
 
-  if (!session && !isPublicPath) {
+  const tokenCookie = `sb-${PROJECT_REF}-auth-token`;
+  const hasSession =
+    request.cookies.has(tokenCookie) || request.cookies.has(`${tokenCookie}.0`);
+
+  if (!hasSession && !isPublicPath) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-
-  if (session && isAuthPage) {
+  if (hasSession && isAuthPage) {
     return NextResponse.redirect(new URL("/redirect", request.url));
   }
 
-  return supabaseResponse;
+  return NextResponse.next({ request });
 }
 
 export const config = {

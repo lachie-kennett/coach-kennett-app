@@ -15,6 +15,8 @@ export async function createClient() {
           return cookieStore.getAll().filter(c => {
             if (seen.has(c.name)) return false;
             seen.add(c.name);
+            // Malformed chunk joins produce values with spaces; valid JWTs never have them
+            if (c.value.includes(" ")) return false;
             return true;
           });
         },
