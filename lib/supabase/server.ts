@@ -11,7 +11,12 @@ export async function createClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          const seen = new Set<string>();
+          return cookieStore.getAll().filter(c => {
+            if (seen.has(c.name)) return false;
+            seen.add(c.name);
+            return true;
+          });
         },
         setAll(cookiesToSet) {
           try {

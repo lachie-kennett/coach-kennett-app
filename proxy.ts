@@ -10,7 +10,12 @@ export async function proxy(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll();
+          const seen = new Set<string>();
+          return request.cookies.getAll().filter(c => {
+            if (seen.has(c.name)) return false;
+            seen.add(c.name);
+            return true;
+          });
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
