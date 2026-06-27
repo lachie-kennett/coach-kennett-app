@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { startWorkoutLog, logSet, finishWorkoutLog, cancelWorkoutLog } from "@/lib/actions/workouts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -76,11 +76,9 @@ function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void })
 
 export function WorkoutPlayer({
   workout,
-  userId,
   previousSets,
 }: {
   workout: Workout;
-  userId: string;
   previousSets: PrevSet[];
 }) {
   const router = useRouter();
@@ -102,18 +100,16 @@ export function WorkoutPlayer({
     startedRef.current = true;
 
     async function startLog() {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("workout_logs")
-        .insert({ client_id: userId, workout_id: workout.id })
-        .select("id")
-        .single();
-
-      if (!error && data) setWorkoutLogId(data.id);
+      try {
+        const id = await startWorkoutLog(workout.id);
+        setWorkoutLogId(id);
+      } catch {
+        toast.error("Failed to start workout");
+      }
     }
 
     startLog();
-  }, [userId, workout.id]);
+  }, [workout.id]);
 
   // Init set entries for each exercise
   useEffect(() => {
@@ -148,46 +144,26 @@ export function WorkoutPlayer({
     const entry = sets[we.id]?.[setIdx];
     if (!entry) return;
 
-    const supabase = createClient();
     const weightKg = entry.weight ? parseFloat(entry.weight) : null;
     const repsCompleted = entry.reps ? parseInt(entry.reps) : null;
 
-    // Check for PR
     let isPR = false;
-    if (weightKg && repsCompleted) {
-      const { data: existingPR } = await supabase
-        .from("personal_records")
-        .select("weight_kg, reps")
-        .eq("client_id", userId)
-        .eq("exercise_id", we.exercises.id)
-        .single();
-
-      isPR = !existingPR || weightKg > existingPR.weight_kg ||
-        (weightKg === existingPR.weight_kg && repsCompleted > existingPR.reps);
+    try {
+      const result = await logSet({
+        workoutLogId,
+        workoutExerciseId: we.id,
+        exerciseId: we.exercises.id,
+        setNumber: setIdx + 1,
+        repsCompleted,
+        weightKg,
+      });
+      isPR = result.isPR;
+    } catch {
+      toast.error("Failed to save set");
+      return;
     }
 
-    const { data: setLog } = await supabase
-      .from("set_logs")
-      .insert({
-        workout_log_id: workoutLogId,
-        workout_exercise_id: we.id,
-        set_number: setIdx + 1,
-        reps_completed: repsCompleted,
-        weight_kg: weightKg,
-        is_pr: isPR,
-      })
-      .select("id")
-      .single();
-
-    if (isPR && setLog && weightKg && repsCompleted) {
-      await supabase.from("personal_records").upsert({
-        client_id: userId,
-        exercise_id: we.exercises.id,
-        weight_kg: weightKg,
-        reps: repsCompleted,
-        set_log_id: setLog.id,
-      }, { onConflict: "client_id,exercise_id" });
-
+    if (isPR) {
       toast.success(`New PR on ${we.exercises.name}!`, { icon: "🏆" });
     }
 
@@ -211,12 +187,7 @@ export function WorkoutPlayer({
     if (!workoutLogId || saving) return;
     setSaving(true);
 
-    const supabase = createClient();
-    await supabase
-      .from("workout_logs")
-      .update({ completed_at: new Date().toISOString() })
-      .eq("id", workoutLogId);
-
+    await finishWorkoutLog(workoutLogId);
     toast.success("Workout complete! Great work.");
     router.push("/home");
   }
@@ -225,8 +196,7 @@ export function WorkoutPlayer({
     if (!workoutLogId) return router.push("/workouts");
     if (!confirm("Cancel this workout? Progress will be lost.")) return;
 
-    const supabase = createClient();
-    await supabase.from("workout_logs").delete().eq("id", workoutLogId);
+    await cancelWorkoutLog(workoutLogId);
     router.push("/workouts");
   }
 

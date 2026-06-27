@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,19 +10,19 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { assignProgram } from "@/lib/actions/programs";
 
 interface Program { id: string; name: string }
 
 export function AssignProgramDialog({
   clientId,
-  coachId,
+  coachId: _coachId,
   programs,
 }: {
   clientId: string;
   coachId: string;
   programs: Program[];
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [programId, setProgramId] = useState("");
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
@@ -36,23 +34,19 @@ export function AssignProgramDialog({
     if (!programId) return;
     setLoading(true);
 
-    const supabase = createClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabase.from("client_programs").insert({
-      client_id: clientId,
-      program_id: programId,
-      start_date: startDate,
-      end_date: endDate || null,
-      assigned_by: coachId,
-      is_active: true,
-    } as any);
-
-    if (error) {
-      toast.error("Failed to assign program");
-    } else {
+    try {
+      await assignProgram({
+        clientId,
+        programId,
+        startDate,
+        endDate: endDate || null,
+      });
       toast.success("Program assigned");
       setOpen(false);
-      router.refresh();
+      setProgramId("");
+      setEndDate("");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to assign program");
     }
     setLoading(false);
   }

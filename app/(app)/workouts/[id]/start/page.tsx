@@ -50,7 +50,6 @@ export default async function StartWorkoutPage({ params }: { params: Promise<{ i
   return (
     <WorkoutPlayer
       workout={{ ...workout, workout_exercises: sorted }}
-      userId={user.id}
       previousSets={prevLog?.set_logs ?? []}
     />
   );
