@@ -73,11 +73,33 @@ export async function logSet(params: {
   return { isPR };
 }
 
-export async function finishWorkoutLog(workoutLogId: string): Promise<void> {
+export async function saveExerciseLog(params: {
+  workoutLogId: string;
+  workoutExerciseId: string;
+  notes?: string | null;
+  rpe?: number | null;
+}): Promise<void> {
+  const admin = createAdminClient();
+  await admin.from("exercise_session_logs").upsert(
+    {
+      workout_log_id: params.workoutLogId,
+      workout_exercise_id: params.workoutExerciseId,
+      notes: params.notes ?? null,
+      rpe: params.rpe ?? null,
+    } as never,
+    { onConflict: "workout_log_id,workout_exercise_id" }
+  );
+}
+
+export async function finishWorkoutLog(
+  workoutLogId: string,
+  notes?: string | null,
+  rpe?: number | null
+): Promise<void> {
   const admin = createAdminClient();
   await admin
     .from("workout_logs")
-    .update({ completed_at: new Date().toISOString() })
+    .update({ completed_at: new Date().toISOString(), notes: notes ?? null, rpe: rpe ?? null } as never)
     .eq("id", workoutLogId);
 }
 

@@ -10,7 +10,10 @@ type WorkoutExercise = {
   order_index: number; exercises: Exercise;
 };
 type WorkoutRow = { id: string; name: string; workout_exercises: WorkoutExercise[] };
-type PrevSet = { workout_exercise_id: string; set_number: number; weight_kg: number | null; reps_completed: number | null };
+
+type SetLog = { workout_exercise_id: string; set_number: number; weight_kg: number | null; reps_completed: number | null };
+type ExerciseLog = { workout_exercise_id: string; notes: string | null; rpe: number | null };
+type PreviousSession = { id: string; started_at: string; set_logs: SetLog[]; exercise_session_logs: ExerciseLog[] };
 
 export default async function StartWorkoutPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,22 +41,25 @@ export default async function StartWorkoutPage({ params }: { params: Promise<{ i
   const workout = workoutData as unknown as WorkoutRow;
   const sorted = [...workout.workout_exercises].sort((a, b) => a.order_index - b.order_index);
 
-  const { data: prevLogData } = await admin
+  const { data: prevLogsData } = await admin
     .from("workout_logs")
-    .select("id, set_logs(workout_exercise_id, set_number, weight_kg, reps_completed)")
+    .select(`
+      id, started_at,
+      set_logs (workout_exercise_id, set_number, weight_kg, reps_completed),
+      exercise_session_logs (workout_exercise_id, notes, rpe)
+    `)
     .eq("client_id", userId)
     .eq("workout_id", id)
     .not("completed_at", "is", null)
     .order("completed_at", { ascending: false })
-    .limit(1)
-    .single();
+    .limit(5);
 
-  const prevLog = prevLogData as unknown as { set_logs: PrevSet[] } | null;
+  const previousSessions = (prevLogsData ?? []) as unknown as PreviousSession[];
 
   return (
     <WorkoutPlayer
       workout={{ ...workout, workout_exercises: sorted }}
-      previousSets={prevLog?.set_logs ?? []}
+      previousSessions={previousSessions}
     />
   );
 }
