@@ -3,14 +3,28 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/supabase/server";
 
-export async function startWorkoutLog(workoutId: string): Promise<string> {
+export async function startWorkoutLog(workoutId: string, forClientId?: string): Promise<string> {
   const user = await getSessionUser();
   if (!user) throw new Error("Not authenticated");
 
   const admin = createAdminClient();
+  let clientId = user.id;
+
+  if (forClientId) {
+    const { data: clientProfile } = await admin
+      .from("profiles")
+      .select("id, coach_id")
+      .eq("id", forClientId)
+      .single();
+    if (!clientProfile || (clientProfile as { coach_id: string }).coach_id !== user.id) {
+      throw new Error("Not authorized to log for this client");
+    }
+    clientId = forClientId;
+  }
+
   const { data, error } = await admin
     .from("workout_logs")
-    .insert({ client_id: user.id, workout_id: workoutId })
+    .insert({ client_id: clientId, workout_id: workoutId })
     .select("id")
     .single();
 
@@ -25,18 +39,20 @@ export async function logSet(params: {
   setNumber: number;
   repsCompleted: number | null;
   weightKg: number | null;
+  forClientId?: string;
 }): Promise<{ isPR: boolean }> {
   const user = await getSessionUser();
   if (!user) throw new Error("Not authenticated");
 
   const admin = createAdminClient();
+  const clientId = params.forClientId ?? user.id;
 
   let isPR = false;
   if (params.weightKg && params.repsCompleted) {
     const { data: existing } = await admin
       .from("personal_records")
       .select("weight_kg, reps")
-      .eq("client_id", user.id)
+      .eq("client_id", clientId)
       .eq("exercise_id", params.exerciseId)
       .single();
 
@@ -62,7 +78,7 @@ export async function logSet(params: {
 
   if (isPR && setLog && params.weightKg && params.repsCompleted) {
     await admin.from("personal_records").upsert({
-      client_id: user.id,
+      client_id: clientId,
       exercise_id: params.exerciseId,
       weight_kg: params.weightKg,
       reps: params.repsCompleted,

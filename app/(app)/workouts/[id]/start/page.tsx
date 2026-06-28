@@ -16,14 +16,36 @@ type SetLog = { workout_exercise_id: string; set_number: number; weight_kg: numb
 type ExerciseLog = { workout_exercise_id: string; notes: string | null; rpe: number | null };
 type PreviousSession = { id: string; started_at: string; set_logs: SetLog[]; exercise_session_logs: ExerciseLog[] };
 
-export default async function StartWorkoutPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StartWorkoutPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ forClient?: string }>;
+}) {
   const { id } = await params;
+  const { forClient: forClientId } = await searchParams;
 
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  const userId = user.id;
 
   const admin = createAdminClient();
+
+  // If logging on behalf of a client, validate coach owns that client
+  let forClient: { id: string; name: string } | undefined;
+  let historyClientId = user.id;
+
+  if (forClientId) {
+    const { data: clientProfile } = await admin
+      .from("profiles")
+      .select("id, full_name, email, coach_id")
+      .eq("id", forClientId)
+      .single();
+    const cp = clientProfile as { id: string; full_name: string | null; email: string; coach_id: string } | null;
+    if (!cp || cp.coach_id !== user.id) redirect("/dashboard");
+    forClient = { id: cp.id, name: cp.full_name ?? cp.email };
+    historyClientId = cp.id;
+  }
 
   const { data: workoutData } = await admin
     .from("program_workouts")
@@ -49,7 +71,7 @@ export default async function StartWorkoutPage({ params }: { params: Promise<{ i
       set_logs (workout_exercise_id, set_number, weight_kg, reps_completed),
       exercise_session_logs (workout_exercise_id, notes, rpe)
     `)
-    .eq("client_id", userId)
+    .eq("client_id", historyClientId)
     .eq("workout_id", id)
     .not("completed_at", "is", null)
     .order("completed_at", { ascending: false })
@@ -63,6 +85,7 @@ export default async function StartWorkoutPage({ params }: { params: Promise<{ i
       workout={{ ...workout, workout_exercises: sorted }}
       previousSessions={previousSessions}
       timezone={timezone}
+      forClient={forClient}
     />
   );
 }

@@ -127,10 +127,12 @@ export function WorkoutPlayer({
   workout,
   previousSessions,
   timezone = "Australia/Melbourne",
+  forClient,
 }: {
   workout: Workout;
   previousSessions: PreviousSession[];
   timezone?: string;
+  forClient?: { id: string; name: string };
 }) {
   const router = useRouter();
   const [currentExIdx, setCurrentExIdx] = useState(0);
@@ -162,7 +164,7 @@ export function WorkoutPlayer({
     startedRef.current = true;
     async function startLog() {
       try {
-        const id = await startWorkoutLog(workout.id);
+        const id = await startWorkoutLog(workout.id, forClient?.id);
         setWorkoutLogId(id);
       } catch {
         toast.error("Failed to start workout");
@@ -220,7 +222,7 @@ export function WorkoutPlayer({
     try {
       const result = await logSet({
         workoutLogId, workoutExerciseId: we.id, exerciseId: we.exercises.id,
-        setNumber: setIdx + 1, repsCompleted, weightKg,
+        setNumber: setIdx + 1, repsCompleted, weightKg, forClientId: forClient?.id,
       });
       isPR = result.isPR;
     } catch {
@@ -255,19 +257,22 @@ export function WorkoutPlayer({
     await saveExerciseLog({ workoutLogId, workoutExerciseId: weId, notes: exerciseNotes[weId] || null, rpe: exerciseRpe[weId] ?? null });
   }
 
+  const returnPath = forClient ? `/clients/${forClient.id}` : "/home";
+  const cancelPath = forClient ? `/clients/${forClient.id}` : "/workouts";
+
   async function finishWorkout() {
     if (!workoutLogId || saving) return;
     setSaving(true);
     await finishWorkoutLog(workoutLogId, sessionNotes || null, sessionRpe);
-    toast.success("Workout complete! Great work.");
-    router.push("/home");
+    toast.success(forClient ? `Logged for ${forClient.name}!` : "Workout complete! Great work.");
+    router.push(returnPath);
   }
 
   async function cancelWorkout() {
-    if (!workoutLogId) return router.push("/workouts");
+    if (!workoutLogId) return router.push(cancelPath);
     if (!confirm("Cancel this workout? Progress will be lost.")) return;
     await cancelWorkoutLog(workoutLogId);
-    router.push("/workouts");
+    router.push(cancelPath);
   }
 
   const completedSets = sets[currentEx?.id]?.filter((s) => s.completed).length ?? 0;
@@ -283,6 +288,13 @@ export function WorkoutPlayer({
       {showRest && <RestTimer seconds={restSeconds} onDone={() => setShowRest(false)} />}
 
       <div className="flex flex-col h-full max-w-lg mx-auto">
+        {forClient && (
+          <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center gap-2">
+            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              Logging for {forClient.name}
+            </span>
+          </div>
+        )}
         {/* Header */}
         <div className="px-4 pt-4 pb-3 space-y-3">
           <div className="flex items-center justify-between">

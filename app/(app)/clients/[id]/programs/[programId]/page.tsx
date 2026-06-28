@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { ArrowLeft, Dumbbell, Pencil } from "lucide-react";
+import { ArrowLeft, Dumbbell, Pencil, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type WorkoutExerciseRow = {
@@ -130,9 +130,17 @@ export default async function ClientProgramPage({
             return (
               <Card key={workout.id}>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Dumbbell className="h-4 w-4 text-primary" />
-                    {workout.name}
+                  <CardTitle className="text-base flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2">
+                      <Dumbbell className="h-4 w-4 text-primary" />
+                      {workout.name}
+                    </span>
+                    <Link
+                      href={`/workouts/${workout.id}/start?forClient=${clientId}`}
+                      className={cn(buttonVariants({ variant: "default", size: "sm" }), "gap-1.5 shrink-0")}
+                    >
+                      <Play className="h-3.5 w-3.5" /> Log
+                    </Link>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
