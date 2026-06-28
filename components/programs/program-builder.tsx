@@ -69,7 +69,7 @@ function AddExerciseDialog({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [exerciseId, setExerciseId] = useState("");
   const [sets, setSets] = useState("3");
-  const [reps, setReps] = useState("10");
+  const [reps, setReps] = useState("");
   const [weightKg, setWeightKg] = useState("");
   const [restSeconds, setRestSeconds] = useState("90");
   const [notes, setNotes] = useState("");
@@ -101,7 +101,7 @@ function AddExerciseDialog({
     if (error) { toast.error("Failed to add exercise"); setLoading(false); return; }
     toast.success("Exercise added");
     setOpen(false);
-    setSearch(""); setDropdownOpen(false); setExerciseId(""); setSets("3"); setReps("10");
+    setSearch(""); setDropdownOpen(false); setExerciseId(""); setSets("3"); setReps("");
     setWeightKg(""); setRestSeconds("90"); setNotes("");
     onAdded();
     setLoading(false);
