@@ -2,14 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createProgram } from "@/lib/actions/programs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-export function NewProgramForm({ coachId }: { coachId: string }) {
+export function NewProgramForm({
+  clientId,
+}: {
+  clientId?: string;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -19,21 +23,18 @@ export function NewProgramForm({ coachId }: { coachId: string }) {
     e.preventDefault();
     setLoading(true);
 
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("programs")
-      .insert({ coach_id: coachId, name, description: description || null })
-      .select("id")
-      .single();
-
-    if (error || !data) {
-      toast.error("Failed to create program");
+    try {
+      const { id } = await createProgram({
+        name,
+        description: description || null,
+        clientId,
+      });
+      toast.success("Program created");
+      router.push(`/programs/${id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create program");
       setLoading(false);
-      return;
     }
-
-    toast.success("Program created");
-    router.push(`/programs/${data.id}`);
   }
 
   return (

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { AssignProgramDialog } from "@/components/clients/assign-program-dialog";
-import { ArrowLeft, ArrowRight, Trophy, BookOpen, Clock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Trophy, BookOpen, Clock, Plus } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { Profile, Program, PersonalRecord, WorkoutLog, Exercise, ClientProgram } from "@/lib/types";
@@ -67,7 +67,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       .eq("client_id", id)
       .order("is_active", { ascending: false })
       .order("start_date", { ascending: false }),
-    admin.from("programs").select("id, name").eq("coach_id", user.id),
+    admin.from("programs").select("id, name").eq("coach_id", user.id).is("client_id", null),
     admin
       .from("personal_records")
       .select("id, weight_kg, reps, achieved_at, exercises(name)")
@@ -108,7 +108,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           <CardTitle className="text-base flex items-center gap-2">
             <BookOpen className="h-4 w-4" /> Current Program
           </CardTitle>
-          <AssignProgramDialog clientId={id} coachId={user.id} programs={programs ?? []} />
+          <div className="flex gap-2">
+            <Link
+              href={`/programs/new?clientId=${id}`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <Plus className="mr-1 h-4 w-4" /> New
+            </Link>
+            <AssignProgramDialog clientId={id} coachId={user.id} programs={programs ?? []} />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {activePrograms.length > 0 ? (

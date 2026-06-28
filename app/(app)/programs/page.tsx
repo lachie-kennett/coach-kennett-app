@@ -21,6 +21,7 @@ export default async function ProgramsPage() {
     .from("programs")
     .select("id, name, description, created_at")
     .eq("coach_id", user.id)
+    .is("client_id", null)
     .order("created_at", { ascending: false });
 
   const programs = programsData as Pick<Program, "id" | "name" | "description" | "created_at">[] | null;
