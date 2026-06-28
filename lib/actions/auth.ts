@@ -27,7 +27,8 @@ export async function signIn(email: string, password: string) {
     await setSessionCookie(data);
     return { redirectTo: "/redirect" };
   } catch (err) {
-    return { error: `Server error: ${err instanceof Error ? err.message : String(err)}` };
+    console.error("[signIn]", err);
+    return { error: "Something went wrong. Please try again." };
   }
 }
 
