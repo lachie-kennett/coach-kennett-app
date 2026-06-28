@@ -27,6 +27,30 @@ function generateTempPassword(): string {
   return pw;
 }
 
+export async function addClient(name: string, email: string, password: string) {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "coach") return { error: "Not authorized" };
+
+  const { data: authData, error: createError } = await admin.auth.admin.createUser({
+    email: email.trim().toLowerCase(),
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: name.trim(), role: "client" },
+  });
+
+  if (createError) return { error: createError.message };
+
+  if (authData.user) {
+    await admin.from("profiles").update({ coach_id: user.id }).eq("id", authData.user.id);
+  }
+
+  return { success: true };
+}
+
 export async function importClients(rows: ImportRow[]): Promise<ImportResult[]> {
   const user = await getSessionUser();
   if (!user) throw new Error("Not authenticated");

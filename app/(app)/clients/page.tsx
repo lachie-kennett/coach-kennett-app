@@ -38,7 +38,7 @@ export default async function ClientsPage() {
             <Upload className="h-4 w-4" />
             Import CSV
           </Link>
-          <AddClientDialog coachId={user.id} />
+          <AddClientDialog />
         </div>
       </div>
 

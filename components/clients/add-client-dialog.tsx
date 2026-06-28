@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { addClient } from "@/lib/actions/clients";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
-export function AddClientDialog({ coachId }: { coachId: string }) {
+export function AddClientDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -24,42 +24,23 @@ export function AddClientDialog({ coachId }: { coachId: string }) {
     e.preventDefault();
     setLoading(true);
 
-    const supabase = createClient();
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: name,
-          role: "client",
-        },
-      },
-    });
-
-    if (error || !data.user) {
-      toast.error(error?.message ?? "Failed to create client");
+    try {
+      const result = await addClient(name, email, password);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success(`${name} added as a client.`);
+        setOpen(false);
+        setName("");
+        setEmail("");
+        setPassword("");
+        router.refresh();
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ coach_id: coachId })
-      .eq("id", data.user.id);
-
-    if (profileError) {
-      toast.error("Client created but failed to link to your account.");
-    } else {
-      toast.success(`${name} added as a client. They'll receive a confirmation email.`);
-    }
-
-    setOpen(false);
-    setName("");
-    setEmail("");
-    setPassword("");
-    setLoading(false);
-    router.refresh();
   }
 
   return (
