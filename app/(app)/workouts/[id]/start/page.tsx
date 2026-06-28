@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { WorkoutPlayer } from "@/components/workouts/workout-player";
 
 type Exercise = { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] };
@@ -55,11 +56,13 @@ export default async function StartWorkoutPage({ params }: { params: Promise<{ i
     .limit(5);
 
   const previousSessions = (prevLogsData ?? []) as unknown as PreviousSession[];
+  const timezone = await getUserTimezone();
 
   return (
     <WorkoutPlayer
       workout={{ ...workout, workout_exercises: sorted }}
       previousSessions={previousSessions}
+      timezone={timezone}
     />
   );
 }

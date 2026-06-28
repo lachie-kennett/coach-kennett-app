@@ -72,11 +72,11 @@ function RpeButtons({ value, onChange }: { value: number | null; onChange: (v: n
   );
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+function formatDate(iso: string, timezone = "Australia/Melbourne") {
+  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: timezone });
 }
 
-function SessionHistory({ weId, sessions }: { weId: string; sessions: PreviousSession[] }) {
+function SessionHistory({ weId, sessions, timezone }: { weId: string; sessions: PreviousSession[]; timezone: string }) {
   const [open, setOpen] = useState(false);
   const relevant = sessions.filter((s) => s.set_logs.some((sl) => sl.workout_exercise_id === weId));
   if (relevant.length === 0) return null;
@@ -100,7 +100,7 @@ function SessionHistory({ weId, sessions }: { weId: string; sessions: PreviousSe
             const exLog = session.exercise_session_logs.find((el) => el.workout_exercise_id === weId);
             return (
               <div key={session.id} className="text-xs border-l-2 border-border pl-2">
-                <p className="font-medium text-muted-foreground">{formatDate(session.started_at)}</p>
+                <p className="font-medium text-muted-foreground">{formatDate(session.started_at, timezone)}</p>
                 <div className="space-y-0.5 mt-0.5">
                   {sets.map((sl) => (
                     <p key={sl.set_number} className="text-muted-foreground">
@@ -126,9 +126,11 @@ function SessionHistory({ weId, sessions }: { weId: string; sessions: PreviousSe
 export function WorkoutPlayer({
   workout,
   previousSessions,
+  timezone = "Australia/Melbourne",
 }: {
   workout: Workout;
   previousSessions: PreviousSession[];
+  timezone?: string;
 }) {
   const router = useRouter();
   const [currentExIdx, setCurrentExIdx] = useState(0);
@@ -373,7 +375,7 @@ export function WorkoutPlayer({
           </div>
 
           {/* History */}
-          <SessionHistory weId={currentEx.id} sessions={previousSessions} />
+          <SessionHistory weId={currentEx.id} sessions={previousSessions} timezone={timezone} />
 
           {/* Exercise RPE */}
           <div className="space-y-1.5">

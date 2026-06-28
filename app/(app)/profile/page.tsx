@@ -7,6 +7,7 @@ import { Trophy, LogOut } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { ChangePasswordForm } from "@/components/profile/change-password-form";
+import { TimezoneSelect } from "@/components/profile/timezone-select";
 import type { Profile, PersonalRecord, Exercise } from "@/lib/types";
 
 type PRRow = Pick<PersonalRecord, "id" | "weight_kg" | "reps" | "achieved_at"> & {
@@ -21,11 +22,12 @@ export default async function ProfilePage() {
 
   const { data: profileData } = await admin
     .from("profiles")
-    .select("id, full_name, email, role")
+    .select("id, full_name, email, role, timezone")
     .eq("id", user.id)
     .single();
 
-  const profile = profileData as Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
+  const profile = profileData as (Pick<Profile, "id" | "full_name" | "email" | "role"> & { timezone?: string }) | null;
+  const timezone = profile?.timezone ?? "Australia/Melbourne";
   if (profile?.role === "coach") redirect("/dashboard");
 
   const [
@@ -103,6 +105,12 @@ export default async function ProfilePage() {
       <ChangePasswordForm />
 
       <Card>
+        <CardContent className="pt-4 pb-4">
+          <TimezoneSelect current={timezone} />
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Trophy className="h-4 w-4 text-primary" /> Personal Records
@@ -117,7 +125,7 @@ export default async function ProfilePage() {
                     <p className="text-sm font-medium">{pr.exercises?.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(pr.achieved_at).toLocaleDateString("en-AU", {
-                        day: "numeric", month: "short", year: "numeric",
+                        day: "numeric", month: "short", year: "numeric", timeZone: timezone,
                       })}
                     </p>
                   </div>

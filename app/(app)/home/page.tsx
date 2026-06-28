@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -74,6 +75,8 @@ export default async function ClientHomePage() {
   const assignment = assignmentData as unknown as AssignmentRow | null;
   const recentPRs = recentPRsData as unknown as PRRow[] | null;
   const recentLogs = recentLogsData as unknown as LogRow[] | null;
+
+  const timezone = await getUserTimezone();
 
   const program = assignment?.programs ?? null;
   const workouts = program?.program_workouts
@@ -181,7 +184,7 @@ export default async function ClientHomePage() {
               <div key={log.id} className="flex items-center justify-between px-6 py-3 border-t border-border first:border-0">
                 <p className="text-sm font-medium">{log.program_workouts?.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(log.completed_at!).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                  {new Date(log.completed_at!).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: timezone })}
                 </p>
               </div>
             ))}

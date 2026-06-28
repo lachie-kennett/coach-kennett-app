@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Dumbbell } from "lucide-react";
@@ -37,6 +38,8 @@ export default async function HistoryPage() {
   const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
   const profile = profileData as Pick<Profile, "role"> | null;
   if (profile?.role === "coach") redirect("/dashboard");
+
+  const timezone = await getUserTimezone();
 
   const { data: logsData } = await admin
     .from("workout_logs")
@@ -79,7 +82,7 @@ export default async function HistoryPage() {
                       </CardTitle>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {new Date(log.completed_at).toLocaleDateString("en-AU", {
-                          weekday: "short", day: "numeric", month: "short", year: "numeric",
+                          weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: timezone,
                         })}
                       </p>
                     </div>

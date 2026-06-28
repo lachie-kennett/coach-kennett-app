@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -89,6 +90,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
   const activePrograms = assignments?.filter(a => a.is_active) ?? [];
   const pastPrograms = assignments?.filter(a => !a.is_active) ?? [];
+  const timezone = await getUserTimezone();
 
   return (
     <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-6">
@@ -236,7 +238,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                 <li key={log.id} className="flex items-center justify-between px-6 py-3">
                   <p className="text-sm font-medium">{log.program_workouts?.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(log.started_at).toLocaleDateString("en-AU")}
+                    {new Date(log.started_at).toLocaleDateString("en-AU", { timeZone: timezone })}
                   </p>
                 </li>
               ))}
