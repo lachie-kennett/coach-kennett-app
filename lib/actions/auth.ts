@@ -12,19 +12,23 @@ const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const BASE_HEADERS = { "Content-Type": "application/json", apikey: ANON };
 
 export async function signIn(email: string, password: string) {
-  const res = await fetch(`${URL}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: { ...BASE_HEADERS, Authorization: `Bearer ${ANON}` },
-    body: JSON.stringify({ email, password }),
-  });
+  try {
+    const res = await fetch(`${URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { ...BASE_HEADERS, Authorization: `Bearer ${ANON}` },
+      body: JSON.stringify({ email, password }),
+    });
 
-  const data = await res.json();
-  if (!res.ok) {
-    return { error: data.error_description ?? data.message ?? "Invalid email or password" };
+    const data = await res.json();
+    if (!res.ok) {
+      return { error: data.error_description ?? data.message ?? "Invalid email or password" };
+    }
+
+    await setSessionCookie(data);
+    return { redirectTo: "/redirect" };
+  } catch (err) {
+    return { error: `Server error: ${err instanceof Error ? err.message : String(err)}` };
   }
-
-  await setSessionCookie(data);
-  return { redirectTo: "/redirect" };
 }
 
 export async function signOut() {
