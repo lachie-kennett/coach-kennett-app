@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Dumbbell, BookOpen, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Dumbbell, BookOpen, Trophy, LogOut } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const links = [
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/programs", label: "Programs", icon: BookOpen },
   { href: "/exercises", label: "Exercises", icon: Dumbbell },
+  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
 ];
 
 export function CoachNav({ profile }: { profile: Profile }) {
