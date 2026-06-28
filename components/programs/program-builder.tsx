@@ -66,6 +66,7 @@ function AddExerciseDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [exerciseId, setExerciseId] = useState("");
   const [sets, setSets] = useState("3");
   const [reps, setReps] = useState("10");
@@ -100,14 +101,14 @@ function AddExerciseDialog({
     if (error) { toast.error("Failed to add exercise"); setLoading(false); return; }
     toast.success("Exercise added");
     setOpen(false);
-    setSearch(""); setExerciseId(""); setSets("3"); setReps("10");
+    setSearch(""); setDropdownOpen(false); setExerciseId(""); setSets("3"); setReps("10");
     setWeightKg(""); setRestSeconds("90"); setNotes("");
     onAdded();
     setLoading(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSearch(""); setExerciseId(""); } }}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSearch(""); setDropdownOpen(false); setExerciseId(""); } }}>
       <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full mt-2")}>
         <Plus className="mr-2 h-4 w-4" /> Add exercise
       </DialogTrigger>
@@ -123,12 +124,18 @@ function AddExerciseDialog({
               <Input
                 placeholder="Search exercises…"
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); setExerciseId(""); }}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setExerciseId("");
+                  setDropdownOpen(true);
+                }}
+                onFocus={() => { if (search) setDropdownOpen(true); }}
+                onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
                 className="pl-9"
                 autoComplete="off"
               />
             </div>
-            {search && (
+            {dropdownOpen && search && (
               <div className="max-h-44 overflow-y-auto rounded-md border bg-popover">
                 {filtered.length === 0 ? (
                   <p className="px-3 py-2 text-sm text-muted-foreground">No exercises found</p>
@@ -137,7 +144,12 @@ function AddExerciseDialog({
                     <button
                       key={ex.id}
                       type="button"
-                      onClick={() => { setExerciseId(ex.id); setSearch(ex.name); }}
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // prevent input blur before click registers
+                        setExerciseId(ex.id);
+                        setSearch(ex.name);
+                        setDropdownOpen(false);
+                      }}
                       className={cn(
                         "w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors",
                         exerciseId === ex.id && "bg-secondary font-medium"
@@ -149,8 +161,8 @@ function AddExerciseDialog({
                 )}
               </div>
             )}
-            {selectedExercise && !search.includes(selectedExercise.name) && (
-              <p className="text-xs text-muted-foreground">Selected: {selectedExercise.name}</p>
+            {selectedExercise && (
+              <p className="text-xs text-muted-foreground">Selected: <span className="font-medium text-foreground">{selectedExercise.name}</span></p>
             )}
           </div>
 
