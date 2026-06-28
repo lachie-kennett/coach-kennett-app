@@ -411,7 +411,6 @@ export function ProgramBuilder({
   exercises: Exercise[];
 }) {
   const router = useRouter();
-  const [workouts, setWorkouts] = useState<Workout[]>(initialWorkouts);
   const [newWorkoutName, setNewWorkoutName] = useState("");
   const [addingWorkout, setAddingWorkout] = useState(false);
 
@@ -428,7 +427,7 @@ export function ProgramBuilder({
     const { error } = await supabase.from("program_workouts").insert({
       program_id: programId,
       name: newWorkoutName.trim(),
-      day_order: workouts.length,
+      day_order: initialWorkouts.length,
     });
 
     if (error) { toast.error("Failed to add workout"); setAddingWorkout(false); return; }
@@ -441,7 +440,7 @@ export function ProgramBuilder({
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        {workouts.map((w) => (
+        {initialWorkouts.map((w) => (
           <WorkoutCard key={w.id} workout={w} exercises={exercises} onUpdate={refresh} />
         ))}
       </div>
