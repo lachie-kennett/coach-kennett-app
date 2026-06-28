@@ -24,7 +24,7 @@ export async function signIn(email: string, password: string) {
   }
 
   await setSessionCookie(data);
-  redirect("/redirect");
+  return { redirectTo: "/redirect" };
 }
 
 export async function signOut() {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,10 +19,16 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    const result = await signIn(email, password);
-
-    if (result?.error) {
-      toast.error(result.error);
+    try {
+      const result = await signIn(email, password);
+      if (result?.error) {
+        toast.error(result.error);
+        setLoading(false);
+      } else if (result?.redirectTo) {
+        router.push(result.redirectTo);
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.");
       setLoading(false);
     }
   }
