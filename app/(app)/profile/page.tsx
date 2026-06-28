@@ -8,6 +8,7 @@ import { signOut } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { ChangePasswordForm } from "@/components/profile/change-password-form";
 import { TimezoneSelect } from "@/components/profile/timezone-select";
+import { AvatarUpload } from "@/components/profile/avatar-upload";
 import type { Profile, PersonalRecord, Exercise } from "@/lib/types";
 
 type PRRow = Pick<PersonalRecord, "id" | "weight_kg" | "reps" | "achieved_at"> & {
@@ -22,11 +23,11 @@ export default async function ProfilePage() {
 
   const { data: profileData } = await admin
     .from("profiles")
-    .select("id, full_name, email, role, timezone")
+    .select("id, full_name, email, role, timezone, avatar_url")
     .eq("id", user.id)
     .single();
 
-  const profile = profileData as (Pick<Profile, "id" | "full_name" | "email" | "role"> & { timezone?: string }) | null;
+  const profile = profileData as (Pick<Profile, "id" | "full_name" | "email" | "role" | "avatar_url"> & { timezone?: string }) | null;
   const timezone = profile?.timezone ?? "Australia/Melbourne";
   if (profile?.role === "coach") redirect("/dashboard");
 
@@ -65,9 +66,10 @@ export default async function ProfilePage() {
       <div className="pt-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 text-xl font-bold text-primary">
-              {(profile?.full_name ?? profile?.email ?? "?")[0].toUpperCase()}
-            </div>
+            <AvatarUpload
+              currentUrl={profile?.avatar_url ?? null}
+              name={profile?.full_name ?? profile?.email ?? "?"}
+            />
             <div>
               <h1 className="text-xl font-bold">{profile?.full_name ?? "Athlete"}</h1>
               <p className="text-sm text-muted-foreground">{profile?.email}</p>
