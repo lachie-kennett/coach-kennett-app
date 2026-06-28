@@ -9,9 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -45,6 +44,15 @@ interface Workout {
   workout_exercises: WorkoutExercise[];
 }
 
+function nextSupersetLetter(exercises: WorkoutExercise[]): string {
+  const used = exercises
+    .filter((we) => we.superset_group)
+    .map((we) => we.superset_group!.toUpperCase());
+  if (used.length === 0) return "A";
+  const maxCode = Math.max(...used.map((g) => g.charCodeAt(0)));
+  return String.fromCharCode(maxCode + 1);
+}
+
 function AddExerciseDialog({
   workoutId,
   exercises,
@@ -57,14 +65,19 @@ function AddExerciseDialog({
   onAdded: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [exerciseId, setExerciseId] = useState("");
   const [sets, setSets] = useState("3");
   const [reps, setReps] = useState("10");
   const [weightKg, setWeightKg] = useState("");
-  const [restSeconds, setRestSeconds] = useState("60");
-  const [supersetGroup, setSupersetGroup] = useState("");
+  const [restSeconds, setRestSeconds] = useState("90");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const filtered = exercises.filter((ex) =>
+    ex.name.toLowerCase().includes(search.toLowerCase())
+  );
+  const selectedExercise = exercises.find((ex) => ex.id === exerciseId);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -80,39 +93,65 @@ function AddExerciseDialog({
       weight_kg: weightKg ? parseFloat(weightKg) : null,
       rest_seconds: parseInt(restSeconds),
       order_index: currentCount,
-      superset_group: supersetGroup || null,
+      superset_group: null,
       notes: notes || null,
     });
 
     if (error) { toast.error("Failed to add exercise"); setLoading(false); return; }
     toast.success("Exercise added");
     setOpen(false);
-    setExerciseId(""); setSets("3"); setReps("10"); setWeightKg("");
-    setRestSeconds("60"); setSupersetGroup(""); setNotes("");
+    setSearch(""); setExerciseId(""); setSets("3"); setReps("10");
+    setWeightKg(""); setRestSeconds("90"); setNotes("");
     onAdded();
     setLoading(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSearch(""); setExerciseId(""); } }}>
       <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full mt-2")}>
         <Plus className="mr-2 h-4 w-4" /> Add exercise
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Add exercise to workout</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Add exercise</DialogTitle></DialogHeader>
         <form onSubmit={handleAdd} className="space-y-4 mt-2">
+
+          {/* Exercise search */}
           <div className="space-y-2">
             <Label>Exercise</Label>
-            <Select value={exerciseId} onValueChange={(v) => v && setExerciseId(v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select exercise" />
-              </SelectTrigger>
-              <SelectContent>
-                {exercises.map((ex) => (
-                  <SelectItem key={ex.id} value={ex.id}>{ex.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search exercises…"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setExerciseId(""); }}
+                className="pl-9"
+                autoComplete="off"
+              />
+            </div>
+            {search && (
+              <div className="max-h-44 overflow-y-auto rounded-md border bg-popover">
+                {filtered.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">No exercises found</p>
+                ) : (
+                  filtered.map((ex) => (
+                    <button
+                      key={ex.id}
+                      type="button"
+                      onClick={() => { setExerciseId(ex.id); setSearch(ex.name); }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors",
+                        exerciseId === ex.id && "bg-secondary font-medium"
+                      )}
+                    >
+                      {ex.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {selectedExercise && !search.includes(selectedExercise.name) && (
+              <p className="text-xs text-muted-foreground">Selected: {selectedExercise.name}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -135,11 +174,6 @@ function AddExerciseDialog({
               <Label htmlFor="we-rest">Rest (sec)</Label>
               <Input id="we-rest" type="number" min="0" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="we-superset">Superset group (optional)</Label>
-            <Input id="we-superset" value={supersetGroup} onChange={(e) => setSupersetGroup(e.target.value)} placeholder="e.g. A (pairs A1 + A2)" />
           </div>
 
           <div className="space-y-2">
@@ -166,7 +200,19 @@ function WorkoutCard({
   onUpdate: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const router = useRouter();
+
+  const sorted = [...workout.workout_exercises].sort((a, b) => a.order_index - b.order_index);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleDeleteWorkout() {
     if (!confirm(`Delete "${workout.name}"?`)) return;
@@ -182,6 +228,7 @@ function WorkoutCard({
     const { error } = await supabase.from("workout_exercises").delete().eq("id", weId);
     if (error) { toast.error("Failed to remove"); return; }
     toast.success("Exercise removed");
+    setSelected((prev) => { const next = new Set(prev); next.delete(weId); return next; });
     onUpdate();
   }
 
@@ -189,11 +236,7 @@ function WorkoutCard({
     const supabase = createClient();
     const { data: newWorkout, error } = await supabase
       .from("program_workouts")
-      .insert({
-        program_id: workout.program_id,
-        name: `${workout.name} (copy)`,
-        day_order: workout.day_order + 1,
-      })
+      .insert({ program_id: workout.program_id, name: `${workout.name} (copy)`, day_order: workout.day_order + 1 })
       .select("id")
       .single();
 
@@ -202,7 +245,7 @@ function WorkoutCard({
     if (workout.workout_exercises.length > 0) {
       await supabase.from("workout_exercises").insert(
         workout.workout_exercises.map((we) => ({
-          workout_id: newWorkout.id,
+          workout_id: (newWorkout as { id: string }).id,
           exercise_id: we.exercise_id,
           sets: we.sets,
           reps: we.reps,
@@ -219,7 +262,30 @@ function WorkoutCard({
     onUpdate();
   }
 
-  const sorted = [...workout.workout_exercises].sort((a, b) => a.order_index - b.order_index);
+  async function handleMakeSuperset() {
+    if (selected.size < 2) return;
+    const letter = nextSupersetLetter(workout.workout_exercises);
+    const supabase = createClient();
+    const ids = [...selected];
+    const { error } = await supabase
+      .from("workout_exercises")
+      .update({ superset_group: letter })
+      .in("id", ids);
+    if (error) { toast.error("Failed to create superset"); return; }
+    toast.success(`Superset ${letter} created`);
+    setSelected(new Set());
+    onUpdate();
+  }
+
+  async function handleRemoveSuperset(weId: string) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workout_exercises")
+      .update({ superset_group: null })
+      .eq("id", weId);
+    if (error) { toast.error("Failed to remove from superset"); return; }
+    onUpdate();
+  }
 
   return (
     <Card>
@@ -247,41 +313,76 @@ function WorkoutCard({
       {expanded && (
         <CardContent className="pt-0">
           {sorted.length > 0 ? (
-            <div className="space-y-2 mb-2">
-              {sorted.map((we) => (
-                <div key={we.id} className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2">
-                  {we.superset_group && (
-                    <span className="text-xs font-bold text-primary w-4">{we.superset_group}</span>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{we.exercises?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {we.sets} × {we.reps}
-                      {we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}
-                      {" · "}{we.rest_seconds}s rest
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                    onClick={() => handleDeleteExercise(we.id)}
+            <div className="space-y-1.5 mb-2">
+              {sorted.map((we) => {
+                const isSelected = selected.has(we.id);
+                return (
+                  <div
+                    key={we.id}
+                    onClick={() => toggleSelect(we.id)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-colors",
+                      isSelected ? "bg-primary/15 ring-1 ring-primary/40" : "bg-secondary/50 hover:bg-secondary/80"
+                    )}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
+                    {/* Superset badge — click to remove */}
+                    {we.superset_group ? (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleRemoveSuperset(we.id); }}
+                        className="text-xs font-bold text-primary w-5 shrink-0 hover:text-destructive transition-colors"
+                        title="Remove from superset"
+                      >
+                        {we.superset_group}
+                      </button>
+                    ) : (
+                      <span className="w-5 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{we.exercises?.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {we.sets} × {we.reps}
+                        {we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}
+                        {" · "}{we.rest_seconds}s rest
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteExercise(we.id); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground mb-2">No exercises yet.</p>
           )}
 
-          <AddExerciseDialog
-            workoutId={workout.id}
-            exercises={exercises}
-            currentCount={workout.workout_exercises.length}
-            onAdded={onUpdate}
-          />
+          <div className="flex gap-2">
+            {selected.size >= 2 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="flex-1"
+                onClick={handleMakeSuperset}
+              >
+                <Link2 className="mr-2 h-3.5 w-3.5" />
+                Superset ({selected.size})
+              </Button>
+            )}
+            <div className={cn(selected.size >= 2 ? "flex-1" : "w-full")}>
+              <AddExerciseDialog
+                workoutId={workout.id}
+                exercises={exercises}
+                currentCount={workout.workout_exercises.length}
+                onAdded={onUpdate}
+              />
+            </div>
+          </div>
         </CardContent>
       )}
     </Card>
