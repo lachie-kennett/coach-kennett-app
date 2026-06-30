@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Search, Plus, Play, Pencil, Trash2, Dumbbell } from "lucide-react";
+import { Search, Plus, Play, Pencil, Trash2, Dumbbell, Youtube } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -94,7 +94,22 @@ function ExerciseFormDialog({
       </div>
       <div className="space-y-2">
         <Label htmlFor="ex-yt">YouTube URL (optional)</Label>
-        <Input id="ex-yt" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." />
+        <div className="flex gap-2">
+          <Input id="ex-yt" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            title="Search YouTube"
+            onClick={() => {
+              const query = encodeURIComponent(`${name} exercise tutorial`);
+              window.open(`https://www.youtube.com/results?search_query=${query}`, "_blank");
+            }}
+          >
+            <Youtube className="h-4 w-4 text-red-500" />
+          </Button>
+        </div>
       </div>
       <div className="space-y-2">
         <Label>Muscle groups</Label>
