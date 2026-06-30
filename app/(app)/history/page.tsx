@@ -4,9 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Dumbbell, BarChart2 } from "lucide-react";
-import { VolumeChart } from "@/components/charts/volume-chart";
-import { buildWeeklyVolume } from "@/lib/volume";
+import { Clock, Dumbbell } from "lucide-react";
 import type { Profile } from "@/lib/types";
 
 type SetLogRow = {
@@ -56,33 +54,9 @@ export default async function HistoryPage() {
 
   const logs = logsData as unknown as LogRow[] | null;
 
-  // Build volume chart data from existing logs
-  const flatLogs = (logs ?? []).map((l) => ({ id: l.id, completed_at: l.completed_at }));
-  const flatSets = (logs ?? []).flatMap((l) =>
-    (l.set_logs ?? []).map((s) => ({
-      workout_log_id: l.id,
-      weight_kg: s.weight_kg,
-      reps_completed: s.reps_completed,
-    }))
-  );
-  const weeklyVolume = buildWeeklyVolume(flatLogs, flatSets, 12);
-
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
       <h1 className="text-2xl font-bold pt-2">History</h1>
-
-      {/* Volume Chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BarChart2 className="h-4 w-4 text-primary" />
-            Weekly Volume
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0 pb-3">
-          <VolumeChart data={weeklyVolume} />
-        </CardContent>
-      </Card>
 
       {logs && logs.length > 0 ? (
         <div className="space-y-3">

@@ -3,13 +3,11 @@ import Link from "next/link";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserTimezone } from "@/lib/supabase/get-timezone";
-import { VolumeChart } from "@/components/charts/volume-chart";
-import { buildWeeklyVolume } from "@/lib/volume";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { AssignProgramDialog } from "@/components/clients/assign-program-dialog";
-import { ArrowLeft, ArrowRight, Trophy, BookOpen, Clock, Plus, BarChart2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Trophy, BookOpen, Clock, Plus } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { Profile, Program, PersonalRecord, WorkoutLog, Exercise, ClientProgram } from "@/lib/types";
@@ -58,14 +56,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     program_workouts: { name: string } | null;
   };
 
-  const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 86400000).toISOString();
-
   const [
     { data: assignmentsData },
     { data: programsData },
     { data: prsData },
     { data: recentLogsData },
-    { data: volumeLogsData },
   ] = await Promise.all([
     admin
       .from("client_programs")
@@ -87,24 +82,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       .not("completed_at", "is", null)
       .order("started_at", { ascending: false })
       .limit(5),
-    admin
-      .from("workout_logs")
-      .select("id, completed_at, set_logs(workout_log_id, weight_kg, reps_completed)")
-      .eq("client_id", id)
-      .not("completed_at", "is", null)
-      .gte("completed_at", twelveWeeksAgo),
   ]);
 
   const assignments = assignmentsData as AssignmentRow[] | null;
   const programs = programsData as Pick<Program, "id" | "name">[] | null;
   const prs = prsData as PRRow[] | null;
   const recentLogs = recentLogsData as LogRow[] | null;
-
-  type VolumeLogRow = { id: string; completed_at: string; set_logs: { workout_log_id: string; weight_kg: number | null; reps_completed: number | null }[] };
-  const volumeLogs = (volumeLogsData ?? []) as unknown as VolumeLogRow[];
-  const volumeFlatLogs = volumeLogs.map((l) => ({ id: l.id, completed_at: l.completed_at }));
-  const volumeFlatSets = volumeLogs.flatMap((l) => l.set_logs ?? []);
-  const weeklyVolume = buildWeeklyVolume(volumeFlatLogs, volumeFlatSets, 12);
 
   const activePrograms = assignments?.filter(a => a.is_active) ?? [];
   const pastPrograms = assignments?.filter(a => !a.is_active) ?? [];
@@ -220,18 +203,6 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </CardContent>
         </Card>
       )}
-
-      {/* Volume Chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BarChart2 className="h-4 w-4 text-primary" /> Weekly Volume
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0 pb-3">
-          <VolumeChart data={weeklyVolume} />
-        </CardContent>
-      </Card>
 
       {/* Recent PRs */}
       <Card>
