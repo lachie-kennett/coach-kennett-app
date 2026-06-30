@@ -45,6 +45,33 @@ export async function signOut() {
   redirect("/login");
 }
 
+export async function requestPasswordReset(email: string): Promise<{ error?: string }> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const res = await fetch(`${URL}/auth/v1/recover`, {
+    method: "POST",
+    headers: { ...BASE_HEADERS, Authorization: `Bearer ${ANON}` },
+    body: JSON.stringify({ email, redirect_to: `${siteUrl}/reset-password` }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    return { error: data.error_description ?? data.message ?? "Failed to send reset email" };
+  }
+  return {};
+}
+
+export async function resetPassword(accessToken: string, newPassword: string): Promise<{ error?: string }> {
+  const res = await fetch(`${URL}/auth/v1/user`, {
+    method: "PUT",
+    headers: { ...BASE_HEADERS, Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ password: newPassword }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    return { error: data.message ?? "Failed to reset password" };
+  }
+  return {};
+}
+
 export async function changePassword(newPassword: string) {
   const session = await getServerSession();
   if (!session?.access_token) return { error: "Not authenticated" };
