@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Users, Dumbbell, ArrowRight, AlertTriangle, Clock, UserX } from "lucide-react";
+import { Users, BookOpen, Dumbbell, ArrowRight, AlertTriangle, Clock, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
