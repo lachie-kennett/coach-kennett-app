@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Users, BookOpen, Dumbbell, ArrowRight, AlertTriangle, Clock, UserX } from "lucide-react";
+import { Users, Dumbbell, ArrowRight, AlertTriangle, Clock, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
@@ -41,12 +41,10 @@ export default async function DashboardPage() {
 
   const [
     { count: clientCount },
-    { count: programCount },
     { count: exerciseCount },
     { data: allClientsData },
   ] = await Promise.all([
     admin.from("profiles").select("*", { count: "exact", head: true }).eq("coach_id", user.id),
-    admin.from("programs").select("*", { count: "exact", head: true }).eq("coach_id", user.id),
     admin.from("exercises").select("*", { count: "exact", head: true }).eq("coach_id", user.id),
     admin.from("profiles").select("id, full_name, email").eq("coach_id", user.id).order("full_name"),
   ]);
@@ -107,7 +105,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-muted-foreground mt-1">Overview of your coaching business</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
@@ -115,15 +113,6 @@ export default async function DashboardPage() {
               <span className="text-xs text-muted-foreground">Clients</span>
             </div>
             <p className="text-2xl font-bold mt-1">{clientCount ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-primary" />
-              <span className="text-xs text-muted-foreground">Programs</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{programCount ?? 0}</p>
           </CardContent>
         </Card>
         <Card>

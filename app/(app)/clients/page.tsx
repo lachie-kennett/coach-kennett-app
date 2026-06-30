@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
-import { ArrowRight, Upload, UserPlus } from "lucide-react";
+import { ArrowRight, UserPlus } from "lucide-react";
 import { AddClientDialog } from "@/components/clients/add-client-dialog";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
@@ -33,13 +33,7 @@ export default async function ClientsPage() {
           <h1 className="text-2xl font-bold">Clients</h1>
           <p className="text-sm text-muted-foreground mt-1">{clients?.length ?? 0} total</p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/clients/import" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            <Upload className="h-4 w-4" />
-            Import CSV
-          </Link>
-          <AddClientDialog />
-        </div>
+        <AddClientDialog />
       </div>
 
       {clients && clients.length > 0 ? (
