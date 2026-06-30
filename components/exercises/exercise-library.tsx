@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Search, Plus, Play, Pencil, Trash2, Dumbbell, Youtube } from "lucide-react";
+import { Search, Plus, Play, Pencil, Trash2, Dumbbell, ExternalLink } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -107,7 +107,7 @@ function ExerciseFormDialog({
               window.open(`https://www.youtube.com/results?search_query=${query}`, "_blank");
             }}
           >
-            <Youtube className="h-4 w-4 text-red-500" />
+            <ExternalLink className="h-4 w-4" />
           </Button>
         </div>
       </div>
