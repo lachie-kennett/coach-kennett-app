@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: "Training platform for Coach Kennett clients",
   manifest: "/manifest.json",
   icons: {
-    apple: "/icon-192.png",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
   appleWebApp: {
     capable: true,
