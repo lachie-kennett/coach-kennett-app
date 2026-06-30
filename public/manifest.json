@@ -1,6 +1,6 @@
 {
-  "name": "Coach Kennett",
-  "short_name": "CK",
+  "name": "Training App",
+  "short_name": "Training App",
   "description": "Training platform for Coach Kennett clients",
   "start_url": "/",
   "display": "standalone",
