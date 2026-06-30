@@ -6,7 +6,7 @@ import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Play, Trophy, ChevronRight, Dumbbell, CalendarDays } from "lucide-react";
+import { Play, Trophy, ChevronRight, Dumbbell, CalendarDays, MessageCircle } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Profile, PersonalRecord, WorkoutLog, Exercise } from "@/lib/types";
@@ -37,11 +37,11 @@ export default async function ClientHomePage() {
 
   const { data: profileData } = await admin
     .from("profiles")
-    .select("role, full_name")
+    .select("role, full_name, coach_id")
     .eq("id", user.id)
     .single();
 
-  const profile = profileData as Pick<Profile, "role" | "full_name"> | null;
+  const profile = profileData as Pick<Profile, "role" | "full_name" | "coach_id"> | null;
   if (profile?.role === "coach") redirect("/dashboard");
 
   const [
@@ -77,6 +77,36 @@ export default async function ClientHomePage() {
   const recentLogs = recentLogsData as unknown as LogRow[] | null;
 
   const timezone = await getUserTimezone();
+
+  // Mini leaderboard — sessions in last 28 days among coach's clients
+  type PeerRow = { id: string; full_name: string | null };
+  type MiniEntry = PeerRow & { count: number };
+  let miniLeaderboard: MiniEntry[] = [];
+  let userRank = 0;
+
+  if (profile?.coach_id) {
+    const since = new Date(Date.now() - 28 * 86400000).toISOString();
+    const { data: peersData } = await admin
+      .from("profiles").select("id, full_name").eq("coach_id", profile.coach_id);
+    const peers = (peersData ?? []) as PeerRow[];
+    const peerIds = peers.map(p => p.id);
+    const countMap = new Map<string, number>();
+    if (peerIds.length > 0) {
+      const { data: logData } = await admin
+        .from("workout_logs").select("client_id")
+        .in("client_id", peerIds)
+        .not("completed_at", "is", null)
+        .gte("completed_at", since);
+      for (const log of logData ?? []) {
+        const l = log as { client_id: string };
+        countMap.set(l.client_id, (countMap.get(l.client_id) ?? 0) + 1);
+      }
+    }
+    miniLeaderboard = peers
+      .map(p => ({ ...p, count: countMap.get(p.id) ?? 0 }))
+      .sort((a, b) => b.count - a.count);
+    userRank = miniLeaderboard.findIndex(p => p.id === user.id) + 1;
+  }
 
   const program = assignment?.programs ?? null;
   const workouts = program?.program_workouts
@@ -191,6 +221,61 @@ export default async function ClientHomePage() {
           </CardContent>
         </Card>
       )}
+      {miniLeaderboard.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-primary" /> Leaderboard
+            </CardTitle>
+            <Link href="/leaderboard" className="text-xs text-primary hover:underline flex items-center gap-1">
+              View all <ChevronRight className="h-3 w-3" />
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            <p className="px-6 pb-2 text-xs text-muted-foreground">Sessions — last 28 days</p>
+            <ul className="divide-y divide-border">
+              {miniLeaderboard.slice(0, 3).map((entry, idx) => {
+                const isMe = entry.id === user.id;
+                return (
+                  <li key={entry.id} className={cn("flex items-center gap-3 px-6 py-3", isMe && "bg-primary/5")}>
+                    <span className="text-sm font-bold w-5 text-center text-muted-foreground">
+                      {idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}
+                    </span>
+                    <p className={cn("flex-1 text-sm", isMe ? "font-semibold" : "font-medium")}>
+                      {entry.full_name ?? "Athlete"}{isMe && " (you)"}
+                    </p>
+                    <span className="text-sm font-semibold tabular-nums">{entry.count}</span>
+                  </li>
+                );
+              })}
+              {userRank > 3 && (
+                <>
+                  <li className="px-6 py-1 text-center text-xs text-muted-foreground">···</li>
+                  <li className="flex items-center gap-3 px-6 py-3 bg-primary/5">
+                    <span className="text-sm font-bold w-5 text-center text-muted-foreground">{userRank}</span>
+                    <p className="flex-1 text-sm font-semibold">
+                      {profile?.full_name ?? "You"} (you)
+                    </p>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {miniLeaderboard[userRank - 1]?.count ?? 0}
+                    </span>
+                  </li>
+                </>
+              )}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      <a
+        href="https://wa.me/61439816501"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full rounded-md bg-[#25D366] text-white font-medium py-3 text-sm hover:bg-[#1ebe5c] transition-colors"
+      >
+        <MessageCircle className="h-4 w-4" />
+        Message your coach
+      </a>
     </div>
   );
 }

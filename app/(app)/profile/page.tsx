@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, LogOut, MessageCircle } from "lucide-react";
+import { Trophy, LogOut } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { ChangePasswordForm } from "@/components/profile/change-password-form";
@@ -103,16 +103,6 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
       </div>
-
-      <a
-        href="https://wa.me/61439816501"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full rounded-md bg-[#25D366] text-white font-medium py-3 text-sm hover:bg-[#1ebe5c] transition-colors"
-      >
-        <MessageCircle className="h-4 w-4" />
-        Message your coach
-      </a>
 
       <ChangePasswordForm />
 
