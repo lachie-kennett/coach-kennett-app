@@ -13,13 +13,19 @@ const BASE_HEADERS = { "Content-Type": "application/json", apikey: ANON };
 
 export async function signIn(email: string, password: string) {
   try {
-    const res = await fetch(`${URL}/auth/v1/token?grant_type=password`, {
+    const endpoint = `${URL}/auth/v1/token?grant_type=password`;
+    console.log("[signIn] URL:", URL ? URL.slice(0, 30) + "..." : "MISSING");
+    console.log("[signIn] ANON:", ANON ? ANON.slice(0, 10) + "..." : "MISSING");
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { ...BASE_HEADERS, Authorization: `Bearer ${ANON}` },
       body: JSON.stringify({ email, password }),
     });
 
-    const data = await res.json();
+    console.log("[signIn] status:", res.status, res.statusText);
+    const text = await res.text();
+    console.log("[signIn] body:", text.slice(0, 100));
+    const data = JSON.parse(text);
     if (!res.ok) {
       return { error: data.error_description ?? data.message ?? "Invalid email or password" };
     }
