@@ -27,7 +27,9 @@ export function CoachNav({ profile }: { profile: Profile }) {
         <div className="flex items-center gap-6">
           <Link href="/dashboard">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-offwhite.svg" alt="Coach Kennett" className="h-8 w-auto" />
+            <img src="/logo-offwhite.svg" alt="Coach Kennett" className="h-8 w-auto hidden dark:block" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-olive.png" alt="Coach Kennett" className="h-8 w-auto dark:hidden" />
           </Link>
           <nav className="hidden items-center gap-1 sm:flex">
             {links.map(({ href, label, icon: Icon }) => (
