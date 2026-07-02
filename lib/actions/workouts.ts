@@ -34,7 +34,8 @@ export async function startWorkoutLog(workoutId: string, forClientId?: string): 
 
 export async function logSet(params: {
   workoutLogId: string;
-  workoutExerciseId: string;
+  workoutExerciseId: string | null;
+  sessionExerciseId?: string | null;
   exerciseId: string;
   setNumber: number;
   repsCompleted: number | null;
@@ -65,12 +66,13 @@ export async function logSet(params: {
     .from("set_logs")
     .insert({
       workout_log_id: params.workoutLogId,
-      workout_exercise_id: params.workoutExerciseId,
+      workout_exercise_id: params.workoutExerciseId ?? null,
+      session_exercise_id: params.sessionExerciseId ?? null,
       set_number: params.setNumber,
       reps_completed: params.repsCompleted,
       weight_kg: params.weightKg,
       is_pr: isPR,
-    })
+    } as never)
     .select("id")
     .single();
 
@@ -122,4 +124,64 @@ export async function finishWorkoutLog(
 export async function cancelWorkoutLog(workoutLogId: string): Promise<void> {
   const admin = createAdminClient();
   await admin.from("workout_logs").delete().eq("id", workoutLogId);
+}
+
+export async function addSessionExercise(params: {
+  workoutLogId: string;
+  exerciseId: string;
+}): Promise<string> {
+  const user = await getSessionUser();
+  if (!user) throw new Error("Not authenticated");
+  const admin = createAdminClient();
+
+  const { count } = await admin
+    .from("session_exercises")
+    .select("*", { count: "exact", head: true })
+    .eq("workout_log_id", params.workoutLogId);
+
+  const { data, error } = await admin
+    .from("session_exercises")
+    .insert({
+      workout_log_id: params.workoutLogId,
+      exercise_id: params.exerciseId,
+      order_index: count ?? 0,
+    } as never)
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return (data as { id: string }).id;
+}
+
+export async function getCoachExercisesForLog(workoutLogId: string): Promise<{
+  id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[];
+}[]> {
+  const user = await getSessionUser();
+  if (!user) throw new Error("Not authenticated");
+  const admin = createAdminClient();
+
+  const { data: logData } = await admin
+    .from("workout_logs")
+    .select("client_id")
+    .eq("id", workoutLogId)
+    .single();
+
+  if (!logData) return [];
+  const clientId = (logData as { client_id: string }).client_id;
+
+  const { data: profileData } = await admin
+    .from("profiles")
+    .select("coach_id")
+    .eq("id", clientId)
+    .single();
+
+  const coachId = (profileData as { coach_id: string | null } | null)?.coach_id ?? user.id;
+
+  const { data } = await admin
+    .from("exercises")
+    .select("id, name, description, youtube_url, muscle_groups")
+    .eq("coach_id", coachId)
+    .order("name");
+
+  return (data ?? []) as { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] }[];
 }
