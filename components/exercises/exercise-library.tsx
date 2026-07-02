@@ -97,7 +97,7 @@ function ExerciseFormDialog({
             className="shrink-0"
             title="Search YouTube"
             onClick={() => {
-              const query = encodeURIComponent(`${name} exercise tutorial`);
+              const query = encodeURIComponent(name);
               window.open(`https://www.youtube.com/results?search_query=${query}`, "_blank");
             }}
           >
