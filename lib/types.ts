@@ -1,9 +1,9 @@
 export type UserRole = "coach" | "client";
 
 export type MuscleGroup =
-  | "chest" | "back" | "shoulders" | "biceps" | "triceps"
-  | "forearms" | "core" | "quads" | "hamstrings" | "glutes"
-  | "calves" | "full_body" | "cardio" | "other";
+  | "lower push" | "lower pull" | "upper push" | "upper pull"
+  | "arms" | "mobility" | "core" | "power" | "plyo"
+  | "resilience" | "conditioning" | "speed" | "agility" | "other";
 
 export interface Profile {
   id: string;

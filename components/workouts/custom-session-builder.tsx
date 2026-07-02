@@ -142,8 +142,8 @@ export function CustomSessionBuilder({ exercises }: { exercises: ExerciseOption[
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{ex.name}</p>
                 {ex.muscle_groups?.length > 0 && (
-                  <p className="text-xs text-muted-foreground capitalize truncate">
-                    {ex.muscle_groups.slice(0, 3).join(", ").replace(/_/g, " ")}
+                  <p className="text-xs text-muted-foreground truncate">
+                    {ex.muscle_groups.slice(0, 3).join(", ")}
                   </p>
                 )}
               </div>

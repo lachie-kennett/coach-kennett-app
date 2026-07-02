@@ -425,7 +425,7 @@ export function WorkoutPlayer({
                 {currentAdHoc.exercise.muscle_groups?.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {currentAdHoc.exercise.muscle_groups.map((m) => (
-                      <span key={m} className="text-xs text-muted-foreground capitalize">{m.replace("_", " ")}</span>
+                      <span key={m} className="text-xs text-muted-foreground">{m}</span>
                     ))}
                   </div>
                 )}
@@ -454,7 +454,7 @@ export function WorkoutPlayer({
             {!currentAdHoc && currentEx!.exercises.muscle_groups?.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {currentEx!.exercises.muscle_groups.map((m) => (
-                  <span key={m} className="text-xs text-muted-foreground capitalize">{m.replace("_", " ")}</span>
+                  <span key={m} className="text-xs text-muted-foreground">{m}</span>
                 ))}
               </div>
             )}
@@ -704,8 +704,8 @@ export function WorkoutPlayer({
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{ex.name}</p>
                           {ex.muscle_groups?.length > 0 && (
-                            <p className="text-xs text-muted-foreground capitalize truncate">
-                              {ex.muscle_groups.join(", ").replace(/_/g, " ")}
+                            <p className="text-xs text-muted-foreground truncate">
+                              {ex.muscle_groups.join(", ")}
                             </p>
                           )}
                         </div>

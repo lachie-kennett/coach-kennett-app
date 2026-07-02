@@ -20,10 +20,10 @@ import type { Database, MuscleGroup } from "@/lib/supabase/types";
 
 type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
 
-const MUSCLE_GROUPS: MuscleGroup[] = [
-  "chest", "back", "shoulders", "biceps", "triceps",
-  "forearms", "core", "quads", "hamstrings", "glutes",
-  "calves", "full_body", "cardio", "other",
+const FOCUS_OPTIONS: MuscleGroup[] = [
+  "lower push", "lower pull", "upper push", "upper pull",
+  "arms", "mobility", "core", "power", "plyo",
+  "resilience", "conditioning", "speed", "agility", "other",
 ];
 
 function getYouTubeId(url: string): string | null {
@@ -106,9 +106,9 @@ function ExerciseFormDialog({
         </div>
       </div>
       <div className="space-y-2">
-        <Label>Muscle groups</Label>
+        <Label>Focus</Label>
         <div className="flex flex-wrap gap-2">
-          {MUSCLE_GROUPS.map((m) => (
+          {FOCUS_OPTIONS.map((m) => (
             <button
               key={m}
               type="button"
@@ -119,7 +119,7 @@ function ExerciseFormDialog({
                   : "border-border text-muted-foreground hover:border-primary/50"
               }`}
             >
-              {m.replace("_", " ")}
+              {m}
             </button>
           ))}
         </div>
@@ -233,8 +233,8 @@ export function ExerciseLibrary({
                   {ex.muscle_groups.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {ex.muscle_groups.map((m) => (
-                        <span key={m} className="text-xs text-muted-foreground capitalize">
-                          {m.replace("_", " ")}
+                        <span key={m} className="text-xs text-muted-foreground">
+                          {m}
                         </span>
                       ))}
                     </div>

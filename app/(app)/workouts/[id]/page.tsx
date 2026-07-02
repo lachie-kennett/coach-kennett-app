@@ -93,7 +93,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                     {ex?.muscle_groups && ex.muscle_groups.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {ex.muscle_groups.map((m: string) => (
-                          <span key={m} className="text-xs text-muted-foreground/70 capitalize">{m.replace("_", " ")}</span>
+                          <span key={m} className="text-xs text-muted-foreground/70">{m}</span>
                         ))}
                       </div>
                     )}
