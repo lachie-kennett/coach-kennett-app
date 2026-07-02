@@ -37,7 +37,9 @@ export default function LoginPage() {
     <div className="w-full max-w-sm">
       <div className="mb-8 flex flex-col items-center gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-offwhite.svg" alt="Coach Kennett" className="w-44" />
+        <img src="/logo-offwhite.svg" alt="Coach Kennett" className="w-44 hidden dark:block" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-olive.png" alt="Coach Kennett" className="w-44 dark:hidden" />
         <p className="text-sm text-muted-foreground">Sign in to your account</p>
       </div>
 
