@@ -68,10 +68,10 @@ function Tile({
       )}
     >
       <div className={cn(
-        "flex h-9 w-9 items-center justify-center rounded-lg mb-3",
+        "flex h-11 w-11 items-center justify-center rounded-xl mb-4",
         danger ? "bg-destructive/10" : "bg-primary/10"
       )}>
-        <Icon className={cn("h-4 w-4", danger ? "text-destructive" : "text-primary")} />
+        <Icon className={cn("h-5 w-5", danger ? "text-destructive" : "text-primary")} />
       </div>
       <div>
         <p className="text-2xl font-bold tabular-nums leading-none">{metric}</p>
@@ -91,7 +91,7 @@ export function DashboardGrid({ clientCount, exerciseCount, feed, attention, rec
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Tile
           icon={Activity}
           label="Recent activity"
