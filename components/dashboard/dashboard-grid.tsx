@@ -63,20 +63,20 @@ function Tile({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col items-start justify-between rounded-xl border p-4 text-left transition-colors hover:bg-muted/40 active:scale-[0.98]",
+        "flex flex-col items-start justify-between rounded-xl border p-4 sm:p-6 text-left transition-colors hover:bg-muted/40 active:scale-[0.98]",
         danger ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"
       )}
     >
       <div className={cn(
-        "flex h-11 w-11 items-center justify-center rounded-xl mb-4",
+        "flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-xl mb-4 sm:mb-6",
         danger ? "bg-destructive/10" : "bg-primary/10"
       )}>
-        <Icon className={cn("h-5 w-5", danger ? "text-destructive" : "text-primary")} />
+        <Icon className={cn("h-5 w-5 sm:h-7 sm:w-7", danger ? "text-destructive" : "text-primary")} />
       </div>
       <div>
-        <p className="text-2xl font-bold tabular-nums leading-none">{metric}</p>
-        {metricLabel && <p className="text-xs text-muted-foreground mt-0.5">{metricLabel}</p>}
-        <p className="text-sm font-medium mt-1">{label}</p>
+        <p className="text-2xl sm:text-4xl font-bold tabular-nums leading-none">{metric}</p>
+        {metricLabel && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">{metricLabel}</p>}
+        <p className="text-sm sm:text-base font-medium mt-1 sm:mt-2">{label}</p>
       </div>
     </button>
   );
