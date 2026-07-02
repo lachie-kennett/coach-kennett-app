@@ -5,11 +5,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Users, BookOpen, Dumbbell, ArrowRight, AlertTriangle, Clock, UserX } from "lucide-react";
+import { Users, BookOpen, Dumbbell, ArrowRight, AlertTriangle, Clock, UserX, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
 type ClientRow = Pick<Profile, "id" | "full_name" | "email">;
+type FeedRow = { id: string; client_id: string; completed_at: string; rpe: number | null; program_workouts: { name: string } | null };
 type ActiveProgramRow = {
   client_id: string;
   program_id: string;
@@ -62,6 +63,30 @@ export default async function DashboardPage() {
     : { data: [] };
 
   const activePrograms = (activeProgramsData ?? []) as unknown as ActiveProgramRow[];
+
+  const { data: feedData } = clientIds.length > 0
+    ? await admin
+        .from("workout_logs")
+        .select("id, client_id, completed_at, rpe, program_workouts(name)")
+        .in("client_id", clientIds)
+        .not("completed_at", "is", null)
+        .order("completed_at", { ascending: false })
+        .limit(20)
+    : { data: [] };
+
+  const feed = (feedData ?? []) as unknown as FeedRow[];
+  const clientNameMap = new Map(allClients.map(c => [c.id, c.full_name ?? c.email]));
+
+  function timeAgo(iso: string): string {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  }
 
   // Build map: clientId -> most recent active program
   const activeProgramMap = new Map<string, ActiveProgramRow>();
@@ -125,6 +150,44 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Activity feed */}
+      {feed.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" /> Recent sessions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ul className="divide-y divide-border">
+              {feed.map((log) => (
+                <li key={log.id}>
+                  <Link
+                    href={`/clients/${log.client_id}`}
+                    className="flex items-center justify-between px-6 py-3 hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {clientNameMap.get(log.client_id) ?? "Unknown"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {log.program_workouts?.name ?? "Session"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-3">
+                      {log.rpe != null && (
+                        <Badge variant="secondary" className="text-xs">RPE {log.rpe}</Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">{timeAgo(log.completed_at)}</span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Needs Attention */}
       {needsAttention.length > 0 && (

@@ -181,6 +181,7 @@ export type Database = {
           started_at: string;
           completed_at: string | null;
           notes: string | null;
+          rpe: number | null;
         };
         Insert: {
           id?: string;
@@ -189,10 +190,12 @@ export type Database = {
           started_at?: string;
           completed_at?: string | null;
           notes?: string | null;
+          rpe?: number | null;
         };
         Update: {
           completed_at?: string | null;
           notes?: string | null;
+          rpe?: number | null;
         };
         Relationships: [];
       };

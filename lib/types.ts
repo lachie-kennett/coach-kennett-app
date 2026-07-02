@@ -75,6 +75,7 @@ export interface WorkoutLog {
   started_at: string;
   completed_at: string | null;
   notes: string | null;
+  rpe: number | null;
 }
 
 export interface SetLog {

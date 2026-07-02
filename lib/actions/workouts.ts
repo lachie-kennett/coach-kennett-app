@@ -115,7 +115,7 @@ export async function finishWorkoutLog(
   const admin = createAdminClient();
   await admin
     .from("workout_logs")
-    .update({ completed_at: new Date().toISOString(), notes: notes ?? null, rpe: rpe ?? null } as never)
+    .update({ completed_at: new Date().toISOString(), notes: notes ?? null, rpe: rpe ?? null })
     .eq("id", workoutLogId);
 }
 
