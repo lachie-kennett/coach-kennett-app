@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createExercise, updateExercise, deleteExercise } from "@/lib/actions/exercises";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,11 +33,9 @@ function getYouTubeId(url: string): string | null {
 
 function ExerciseFormDialog({
   exercise,
-  coachId,
   onClose,
 }: {
   exercise?: Exercise;
-  coachId: string;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -56,30 +54,26 @@ function ExerciseFormDialog({
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const supabase = createClient();
 
-    if (exercise) {
-      const { error } = await supabase.from("exercises").update({
-        name, description: description || null,
-        youtube_url: youtubeUrl || null,
-        muscle_groups: muscleGroups,
-      }).eq("id", exercise.id);
-      if (error) { toast.error("Failed to update"); setLoading(false); return; }
-      toast.success("Exercise updated");
-    } else {
-      const { error } = await supabase.from("exercises").insert({
-        coach_id: coachId, name,
-        description: description || null,
-        youtube_url: youtubeUrl || null,
-        muscle_groups: muscleGroups,
-      });
-      if (error) { toast.error("Failed to create"); setLoading(false); return; }
-      toast.success("Exercise created");
+    const payload = {
+      name,
+      description: description || null,
+      youtube_url: youtubeUrl || null,
+      muscle_groups: muscleGroups,
+    };
+
+    const result = exercise
+      ? await updateExercise(exercise.id, payload)
+      : await createExercise(payload);
+
+    setLoading(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
     }
-
+    toast.success(exercise ? "Exercise updated" : "Exercise created");
     onClose();
     router.refresh();
-    setLoading(false);
   }
 
   return (
@@ -188,9 +182,8 @@ export function ExerciseLibrary({
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this exercise?")) return;
-    const supabase = createClient();
-    const { error } = await supabase.from("exercises").delete().eq("id", id);
-    if (error) { toast.error("Failed to delete"); return; }
+    const result = await deleteExercise(id);
+    if (result.error) { toast.error(result.error); return; }
     toast.success("Deleted");
     router.refresh();
   }
@@ -209,7 +202,7 @@ export function ExerciseLibrary({
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>New exercise</DialogTitle></DialogHeader>
-              <ExerciseFormDialog coachId={coachId} onClose={() => setAddOpen(false)} />
+              <ExerciseFormDialog onClose={() => setAddOpen(false)} />
             </DialogContent>
           </Dialog>
         )}
@@ -261,7 +254,7 @@ export function ExerciseLibrary({
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader><DialogTitle>Edit exercise</DialogTitle></DialogHeader>
-                          <ExerciseFormDialog exercise={ex} coachId={coachId} onClose={() => setEditExercise(null)} />
+                          <ExerciseFormDialog exercise={ex} onClose={() => setEditExercise(null)} />
                         </DialogContent>
                       </Dialog>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(ex.id)}>
