@@ -53,7 +53,7 @@ function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void })
       <p className="text-5xl font-bold tabular-nums mb-2">{remaining}s</p>
       <p className="text-sm text-muted-foreground mb-6">Rest</p>
       <Progress value={pct} className="w-48 h-2 mb-6" />
-      <Button variant="outline" onClick={onDone}>Skip rest</Button>
+      <Button variant="outline" onClick={onDone}>Done</Button>
     </div>
   );
 }
@@ -151,6 +151,7 @@ export function WorkoutPlayer({
   const [workoutLogId, setWorkoutLogId] = useState<string | null>(null);
   const [sets, setSets] = useState<Record<string, SetEntry[]>>({});
   const [showRest, setShowRest] = useState(false);
+  const [showRestButton, setShowRestButton] = useState(false);
   const [restSeconds, setRestSeconds] = useState(90);
   const [showFinish, setShowFinish] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -292,7 +293,7 @@ export function WorkoutPlayer({
     const isLastExercise = currentExIdx === totalExCount - 1;
     if (!(isLastSetOfExercise && isLastExercise)) {
       setRestSeconds(restSecs);
-      setShowRest(true);
+      setShowRestButton(true);
     }
   }
 
@@ -559,6 +560,28 @@ export function WorkoutPlayer({
 
         {/* Footer navigation */}
         <div className="px-4 pb-safe-bottom pt-3 border-t border-border space-y-2">
+          {showRestButton && (
+            <button
+              type="button"
+              onClick={() => { setShowRestButton(false); setShowRest(true); }}
+              className="flex items-center justify-between w-full rounded-lg bg-primary/10 border border-primary/20 px-4 py-2.5 hover:bg-primary/15 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Timer className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-primary">Rest {restSeconds}s</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Tap to start</span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShowRestButton(false); }}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </button>
+          )}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="flex-1"
               disabled={currentExIdx === 0} onClick={() => setCurrentExIdx((i) => i - 1)}>
