@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 @theme inline {
   --color-background: var(--background);
@@ -41,44 +41,77 @@
   --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-/* Coach Kennett brand theme */
+/* Coach Kennett — light theme (default) */
 :root {
-  /* Lime green #8ec641 */
-  --primary: oklch(0.75 0.21 128);
-  --primary-foreground: oklch(0.12 0.02 128);
+  --primary: oklch(0.62 0.21 128);
+  --primary-foreground: oklch(0.98 0.01 128);
 
-  /* Near-black with very subtle green tint */
-  --background: oklch(0.10 0.008 128);
-  --foreground: oklch(0.97 0.025 107);
+  --background: oklch(0.97 0.004 128);
+  --foreground: oklch(0.12 0.01 128);
 
-  /* Cards slightly lighter */
-  --card: oklch(0.14 0.008 128);
-  --card-foreground: oklch(0.97 0.025 107);
-  --popover: oklch(0.14 0.008 128);
-  --popover-foreground: oklch(0.97 0.025 107);
+  --card: oklch(1.0 0 0);
+  --card-foreground: oklch(0.12 0.01 128);
+  --popover: oklch(1.0 0 0);
+  --popover-foreground: oklch(0.12 0.01 128);
 
-  /* Secondary / muted */
-  --secondary: oklch(0.19 0.01 128);
-  --secondary-foreground: oklch(0.97 0.025 107);
-  --muted: oklch(0.19 0.01 128);
-  --muted-foreground: oklch(0.56 0.04 128);
-  --accent: oklch(0.19 0.01 128);
-  --accent-foreground: oklch(0.97 0.025 107);
+  --secondary: oklch(0.93 0.008 128);
+  --secondary-foreground: oklch(0.20 0.01 128);
+  --muted: oklch(0.93 0.008 128);
+  --muted-foreground: oklch(0.48 0.03 128);
+  --accent: oklch(0.93 0.008 128);
+  --accent-foreground: oklch(0.20 0.01 128);
 
-  --destructive: oklch(0.62 0.22 25);
-  --border: oklch(0.97 0.025 107 / 10%);
-  --input: oklch(0.97 0.025 107 / 12%);
-  --ring: oklch(0.75 0.21 128);
+  --destructive: oklch(0.55 0.22 25);
+  --border: oklch(0.12 0.01 128 / 12%);
+  --input: oklch(0.12 0.01 128 / 10%);
+  --ring: oklch(0.62 0.21 128);
   --radius: 0.75rem;
 
-  --sidebar: oklch(0.12 0.008 128);
-  --sidebar-foreground: oklch(0.97 0.025 107);
-  --sidebar-primary: oklch(0.75 0.21 128);
-  --sidebar-primary-foreground: oklch(0.12 0.02 128);
-  --sidebar-accent: oklch(0.19 0.01 128);
-  --sidebar-accent-foreground: oklch(0.97 0.025 107);
-  --sidebar-border: oklch(0.97 0.025 107 / 8%);
-  --sidebar-ring: oklch(0.75 0.21 128);
+  --sidebar: oklch(0.95 0.006 128);
+  --sidebar-foreground: oklch(0.12 0.01 128);
+  --sidebar-primary: oklch(0.62 0.21 128);
+  --sidebar-primary-foreground: oklch(0.98 0.01 128);
+  --sidebar-accent: oklch(0.90 0.01 128);
+  --sidebar-accent-foreground: oklch(0.20 0.01 128);
+  --sidebar-border: oklch(0.12 0.01 128 / 10%);
+  --sidebar-ring: oklch(0.62 0.21 128);
+}
+
+/* Dark theme — follows system preference */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: oklch(0.75 0.21 128);
+    --primary-foreground: oklch(0.12 0.02 128);
+
+    --background: oklch(0.10 0.008 128);
+    --foreground: oklch(0.97 0.025 107);
+
+    --card: oklch(0.14 0.008 128);
+    --card-foreground: oklch(0.97 0.025 107);
+    --popover: oklch(0.14 0.008 128);
+    --popover-foreground: oklch(0.97 0.025 107);
+
+    --secondary: oklch(0.19 0.01 128);
+    --secondary-foreground: oklch(0.97 0.025 107);
+    --muted: oklch(0.19 0.01 128);
+    --muted-foreground: oklch(0.56 0.04 128);
+    --accent: oklch(0.19 0.01 128);
+    --accent-foreground: oklch(0.97 0.025 107);
+
+    --destructive: oklch(0.62 0.22 25);
+    --border: oklch(0.97 0.025 107 / 10%);
+    --input: oklch(0.97 0.025 107 / 12%);
+    --ring: oklch(0.75 0.21 128);
+
+    --sidebar: oklch(0.12 0.008 128);
+    --sidebar-foreground: oklch(0.97 0.025 107);
+    --sidebar-primary: oklch(0.75 0.21 128);
+    --sidebar-primary-foreground: oklch(0.12 0.02 128);
+    --sidebar-accent: oklch(0.19 0.01 128);
+    --sidebar-accent-foreground: oklch(0.97 0.025 107);
+    --sidebar-border: oklch(0.97 0.025 107 / 8%);
+    --sidebar-ring: oklch(0.75 0.21 128);
+  }
 }
 
 @layer base {
