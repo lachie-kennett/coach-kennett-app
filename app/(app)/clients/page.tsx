@@ -26,6 +26,27 @@ export default async function ClientsPage() {
 
   const clients = clientsData as Pick<Profile, "id" | "full_name" | "email" | "created_at">[] | null;
 
+  // Fetch last_sign_in_at for each client from auth.users
+  const lastSeenMap = new Map<string, string | null>();
+  if (clients && clients.length > 0) {
+    const { data: { users } = { users: [] } } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of users) {
+      lastSeenMap.set(u.id, u.last_sign_in_at ?? null);
+    }
+  }
+
+  function formatLastSeen(isoString: string | null | undefined): string {
+    if (!isoString) return "Never logged in";
+    const diffMs = Date.now() - new Date(isoString).getTime();
+    const days = Math.floor(diffMs / 86400000);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days} days ago`;
+    if (days < 30) return `${Math.floor(days / 7)}w ago`;
+    if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+    return `${Math.floor(days / 365)}y ago`;
+  }
+
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -51,7 +72,12 @@ export default async function ClientsPage() {
                       <p className="text-sm text-muted-foreground">{client.email}</p>
                     </div>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs text-muted-foreground hidden sm:block">
+                      {formatLastSeen(lastSeenMap.get(client.id))}
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
                 </CardContent>
               </Card>
             </Link>
