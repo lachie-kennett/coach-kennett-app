@@ -6,7 +6,7 @@ import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Play, Trophy, ChevronRight, Dumbbell, CalendarDays, MessageCircle } from "lucide-react";
+import { Play, Trophy, ChevronRight, Dumbbell, CalendarDays, MessageCircle, ExternalLink } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Profile, PersonalRecord, WorkoutLog, Exercise } from "@/lib/types";
@@ -37,11 +37,11 @@ export default async function ClientHomePage() {
 
   const { data: profileData } = await admin
     .from("profiles")
-    .select("role, full_name, coach_id")
+    .select("role, full_name, coach_id, habit_tracker_url")
     .eq("id", user.id)
     .single();
 
-  const profile = profileData as Pick<Profile, "role" | "full_name" | "coach_id"> | null;
+  const profile = profileData as Pick<Profile, "role" | "full_name" | "coach_id" | "habit_tracker_url"> | null;
   if (profile?.role === "coach") redirect("/dashboard");
 
   const [
@@ -267,15 +267,28 @@ export default async function ClientHomePage() {
         </Card>
       )}
 
-      <a
-        href="https://wa.me/61439816501"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full rounded-md bg-[#25D366] text-white font-medium py-3 text-sm hover:bg-[#1ebe5c] transition-colors"
-      >
-        <MessageCircle className="h-4 w-4" />
-        Message your coach
-      </a>
+      <div className={profile?.habit_tracker_url ? "grid grid-cols-2 gap-3" : ""}>
+        {profile?.habit_tracker_url && (
+          <a
+            href={profile.habit_tracker_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full rounded-md border border-border bg-card font-medium py-3 text-sm hover:bg-muted/50 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Habit tracker
+          </a>
+        )}
+        <a
+          href="https://wa.me/61439816501"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full rounded-md bg-[#25D366] text-white font-medium py-3 text-sm hover:bg-[#1ebe5c] transition-colors"
+        >
+          <MessageCircle className="h-4 w-4" />
+          Message coach
+        </a>
+      </div>
     </div>
   );
 }

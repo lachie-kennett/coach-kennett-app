@@ -18,6 +18,22 @@ export async function updateTimezone(timezone: string): Promise<{ error?: string
   return {};
 }
 
+export async function updateHabitTrackerUrl(url: string): Promise<{ error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const trimmed = url.trim();
+  if (trimmed && !trimmed.startsWith("http")) return { error: "Please enter a valid URL" };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("profiles")
+    .update({ habit_tracker_url: trimmed || null })
+    .eq("id", user.id);
+  if (error) return { error: error.message };
+  revalidatePath("/profile");
+  revalidatePath("/home");
+  return {};
+}
+
 export async function uploadAvatar(formData: FormData): Promise<{ error?: string; url?: string }> {
   const user = await getSessionUser();
   if (!user) return { error: "Not authenticated" };

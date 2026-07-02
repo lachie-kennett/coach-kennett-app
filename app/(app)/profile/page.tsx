@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ChangePasswordForm } from "@/components/profile/change-password-form";
 import { TimezoneSelect } from "@/components/profile/timezone-select";
 import { AvatarUpload } from "@/components/profile/avatar-upload";
+import { HabitTrackerForm } from "@/components/profile/habit-tracker-form";
 import type { Profile, PersonalRecord, Exercise } from "@/lib/types";
 
 type PRRow = Pick<PersonalRecord, "id" | "weight_kg" | "reps" | "achieved_at"> & {
@@ -23,11 +24,11 @@ export default async function ProfilePage() {
 
   const { data: profileData } = await admin
     .from("profiles")
-    .select("id, full_name, email, role, timezone, avatar_url")
+    .select("id, full_name, email, role, timezone, avatar_url, habit_tracker_url")
     .eq("id", user.id)
     .single();
 
-  const profile = profileData as (Pick<Profile, "id" | "full_name" | "email" | "role" | "avatar_url"> & { timezone?: string }) | null;
+  const profile = profileData as (Pick<Profile, "id" | "full_name" | "email" | "role" | "avatar_url" | "habit_tracker_url"> & { timezone?: string }) | null;
   const timezone = profile?.timezone ?? "Australia/Melbourne";
   if (profile?.role === "coach") redirect("/dashboard");
 
@@ -109,6 +110,15 @@ export default async function ProfilePage() {
       <Card>
         <CardContent className="pt-4 pb-4">
           <TimezoneSelect current={timezone} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Habit tracker</CardTitle>
+        </CardHeader>
+        <CardContent className="pb-4">
+          <HabitTrackerForm current={profile?.habit_tracker_url ?? null} />
         </CardContent>
       </Card>
 

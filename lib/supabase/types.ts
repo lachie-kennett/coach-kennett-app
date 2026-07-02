@@ -13,6 +13,7 @@ export type Database = {
           avatar_url: string | null;
           role: "coach" | "client";
           coach_id: string | null;
+          habit_tracker_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -23,6 +24,7 @@ export type Database = {
           avatar_url?: string | null;
           role?: "coach" | "client";
           coach_id?: string | null;
+          habit_tracker_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -33,6 +35,7 @@ export type Database = {
           avatar_url?: string | null;
           role?: "coach" | "client";
           coach_id?: string | null;
+          habit_tracker_url?: string | null;
           updated_at?: string;
         };
         Relationships: [];
