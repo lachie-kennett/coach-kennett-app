@@ -3,11 +3,6 @@ create extension if not exists "uuid-ossp";
 
 -- Enums
 create type user_role as enum ('coach', 'client');
-create type muscle_group as enum (
-  'chest', 'back', 'shoulders', 'biceps', 'triceps',
-  'forearms', 'core', 'quads', 'hamstrings', 'glutes',
-  'calves', 'full_body', 'cardio', 'other'
-);
 
 -- ============================================================
 -- TABLES (all tables first, policies after)
@@ -29,7 +24,7 @@ create table exercises (
   coach_id uuid not null references profiles(id) on delete cascade,
   name text not null,
   description text,
-  muscle_groups muscle_group[] not null default '{}',
+  muscle_groups text[] not null default '{}',
   youtube_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
