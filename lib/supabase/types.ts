@@ -186,7 +186,7 @@ export type Database = {
         Insert: {
           id?: string;
           client_id: string;
-          workout_id: string;
+          workout_id?: string | null;
           started_at?: string;
           completed_at?: string | null;
           notes?: string | null;

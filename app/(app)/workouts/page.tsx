@@ -32,7 +32,12 @@ export default async function WorkoutsPage() {
 
   return (
     <div className="p-4 space-y-5 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold pt-2">Workouts</h1>
+      <div className="flex items-center justify-between pt-2">
+        <h1 className="text-2xl font-bold">Workouts</h1>
+        <Link href="/workouts/custom" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "gap-1.5")}>
+          <Play className="h-3.5 w-3.5" /> Custom session
+        </Link>
+      </div>
 
       {assignments && assignments.length > 0 ? (
         <div className="space-y-4">

@@ -126,6 +126,36 @@ export async function cancelWorkoutLog(workoutLogId: string): Promise<void> {
   await admin.from("workout_logs").delete().eq("id", workoutLogId);
 }
 
+export async function startCustomSession(
+  exercises: { exerciseId: string; sets: number }[]
+): Promise<string> {
+  const user = await getSessionUser();
+  if (!user) throw new Error("Not authenticated");
+  const admin = createAdminClient();
+
+  const { data: log, error } = await admin
+    .from("workout_logs")
+    .insert({ client_id: user.id })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message);
+  const logId = (log as { id: string }).id;
+
+  if (exercises.length > 0) {
+    await admin.from("session_exercises").insert(
+      exercises.map((ex, idx) => ({
+        workout_log_id: logId,
+        exercise_id: ex.exerciseId,
+        order_index: idx,
+        sets: ex.sets,
+      } as never))
+    );
+  }
+
+  return logId;
+}
+
 export async function addSessionExercise(params: {
   workoutLogId: string;
   exerciseId: string;

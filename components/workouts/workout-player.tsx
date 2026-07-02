@@ -34,6 +34,7 @@ interface SetEntry { reps: string; weight: string; completed: boolean; isPR: boo
 interface AdHocExercise {
   sessionExId: string;
   exercise: Exercise;
+  sets?: number;
 }
 
 type PickerExercise = { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] };
@@ -135,11 +136,15 @@ export function WorkoutPlayer({
   previousSessions,
   timezone = "Australia/Melbourne",
   forClient,
+  freeSessionLogId,
+  initialAdHocExercises = [],
 }: {
   workout: Workout;
   previousSessions: PreviousSession[];
   timezone?: string;
   forClient?: { id: string; name: string };
+  freeSessionLogId?: string;
+  initialAdHocExercises?: AdHocExercise[];
 }) {
   const router = useRouter();
   const [currentExIdx, setCurrentExIdx] = useState(0);
@@ -155,8 +160,8 @@ export function WorkoutPlayer({
   const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>({});
   const [exerciseRpe, setExerciseRpe] = useState<Record<string, number | null>>({});
 
-  // Ad-hoc exercises added during the session
-  const [adHocExercises, setAdHocExercises] = useState<AdHocExercise[]>([]);
+  // Ad-hoc exercises added during the session (or pre-loaded for custom sessions)
+  const [adHocExercises, setAdHocExercises] = useState<AdHocExercise[]>(initialAdHocExercises);
 
   // Exercise picker dialog
   const [showExPicker, setShowExPicker] = useState(false);
@@ -177,8 +182,12 @@ export function WorkoutPlayer({
   // Most recent previous session
   const mostRecent = previousSessions[0];
 
-  // Start the workout log on mount
+  // Start the workout log on mount (skip if free session already created)
   useEffect(() => {
+    if (freeSessionLogId) {
+      setWorkoutLogId(freeSessionLogId);
+      return;
+    }
     if (startedRef.current) return;
     startedRef.current = true;
     async function startLog() {
@@ -190,7 +199,7 @@ export function WorkoutPlayer({
       }
     }
     startLog();
-  }, [workout.id]);
+  }, [workout.id, freeSessionLogId]);
 
   // Init set entries and exercise notes from most recent session
   useEffect(() => {
@@ -213,7 +222,16 @@ export function WorkoutPlayer({
 
       const prevExLog = mostRecent?.exercise_session_logs.find((el) => el.workout_exercise_id === we.id);
       initNotes[we.id] = prevExLog?.notes ?? "";
-      initRpe[we.id] = null; // don't pre-fill RPE — should be fresh each session
+      initRpe[we.id] = null;
+    }
+
+    // Init sets for pre-loaded ad-hoc exercises (custom sessions)
+    for (const ah of initialAdHocExercises) {
+      if (!initSets[ah.sessionExId]) {
+        initSets[ah.sessionExId] = Array.from({ length: ah.sets ?? 3 }, () => ({
+          reps: "", weight: "", completed: false, isPR: false,
+        }));
+      }
     }
 
     setSets(initSets);
