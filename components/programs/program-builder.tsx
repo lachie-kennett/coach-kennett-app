@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import {
+  addWorkout,
+  deleteWorkout,
+  duplicateWorkout,
+  addWorkoutExercise,
+  deleteWorkoutExercise,
+  setSupersetGroup,
+} from "@/lib/actions/programs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,20 +92,18 @@ function AddExerciseDialog({
     if (!exerciseId) return;
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.from("workout_exercises").insert({
-      workout_id: workoutId,
-      exercise_id: exerciseId,
+    const { error } = await addWorkoutExercise({
+      workoutId,
+      exerciseId,
       sets: parseInt(sets),
       reps,
-      weight_kg: weightKg ? parseFloat(weightKg) : null,
-      rest_seconds: parseInt(restSeconds),
-      order_index: currentCount,
-      superset_group: null,
+      weightKg: weightKg ? parseFloat(weightKg) : null,
+      restSeconds: parseInt(restSeconds),
+      orderIndex: currentCount,
       notes: notes || null,
     });
 
-    if (error) { toast.error("Failed to add exercise"); setLoading(false); return; }
+    if (error) { toast.error(error); setLoading(false); return; }
     toast.success("Exercise added");
     setOpen(false);
     setSearch(""); setDropdownOpen(false); setExerciseId(""); setSets("3"); setReps("");
@@ -213,7 +218,6 @@ function WorkoutCard({
 }) {
   const [expanded, setExpanded] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const router = useRouter();
 
   const sorted = [...workout.workout_exercises].sort((a, b) => a.order_index - b.order_index);
 
@@ -228,48 +232,23 @@ function WorkoutCard({
 
   async function handleDeleteWorkout() {
     if (!confirm(`Delete "${workout.name}"?`)) return;
-    const supabase = createClient();
-    const { error } = await supabase.from("program_workouts").delete().eq("id", workout.id);
-    if (error) { toast.error("Failed to delete"); return; }
+    const { error } = await deleteWorkout(workout.id);
+    if (error) { toast.error(error); return; }
     toast.success("Workout deleted");
     onUpdate();
   }
 
   async function handleDeleteExercise(weId: string) {
-    const supabase = createClient();
-    const { error } = await supabase.from("workout_exercises").delete().eq("id", weId);
-    if (error) { toast.error("Failed to remove"); return; }
+    const { error } = await deleteWorkoutExercise(weId);
+    if (error) { toast.error(error); return; }
     toast.success("Exercise removed");
     setSelected((prev) => { const next = new Set(prev); next.delete(weId); return next; });
     onUpdate();
   }
 
   async function handleDuplicateWorkout() {
-    const supabase = createClient();
-    const { data: newWorkout, error } = await supabase
-      .from("program_workouts")
-      .insert({ program_id: workout.program_id, name: `${workout.name} (copy)`, day_order: workout.day_order + 1 })
-      .select("id")
-      .single();
-
-    if (error || !newWorkout) { toast.error("Failed to duplicate"); return; }
-
-    if (workout.workout_exercises.length > 0) {
-      await supabase.from("workout_exercises").insert(
-        workout.workout_exercises.map((we) => ({
-          workout_id: (newWorkout as { id: string }).id,
-          exercise_id: we.exercise_id,
-          sets: we.sets,
-          reps: we.reps,
-          weight_kg: we.weight_kg,
-          rest_seconds: we.rest_seconds,
-          order_index: we.order_index,
-          superset_group: we.superset_group,
-          notes: we.notes,
-        }))
-      );
-    }
-
+    const { error } = await duplicateWorkout(workout.id);
+    if (error) { toast.error(error); return; }
     toast.success("Workout duplicated");
     onUpdate();
   }
@@ -277,25 +256,16 @@ function WorkoutCard({
   async function handleMakeSuperset() {
     if (selected.size < 2) return;
     const letter = nextSupersetLetter(workout.workout_exercises);
-    const supabase = createClient();
-    const ids = [...selected];
-    const { error } = await supabase
-      .from("workout_exercises")
-      .update({ superset_group: letter })
-      .in("id", ids);
-    if (error) { toast.error("Failed to create superset"); return; }
+    const { error } = await setSupersetGroup({ workoutExerciseIds: [...selected], group: letter });
+    if (error) { toast.error(error); return; }
     toast.success(`Superset ${letter} created`);
     setSelected(new Set());
     onUpdate();
   }
 
   async function handleRemoveSuperset(weId: string) {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("workout_exercises")
-      .update({ superset_group: null })
-      .eq("id", weId);
-    if (error) { toast.error("Failed to remove from superset"); return; }
+    const { error } = await setSupersetGroup({ workoutExerciseIds: [weId], group: null });
+    if (error) { toast.error(error); return; }
     onUpdate();
   }
 
@@ -423,14 +393,13 @@ export function ProgramBuilder({
     if (!newWorkoutName.trim()) return;
     setAddingWorkout(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.from("program_workouts").insert({
-      program_id: programId,
+    const { error } = await addWorkout({
+      programId,
       name: newWorkoutName.trim(),
-      day_order: initialWorkouts.length,
+      dayOrder: initialWorkouts.length,
     });
 
-    if (error) { toast.error("Failed to add workout"); setAddingWorkout(false); return; }
+    if (error) { toast.error(error); setAddingWorkout(false); return; }
     toast.success("Workout added");
     setNewWorkoutName("");
     setAddingWorkout(false);

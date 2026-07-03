@@ -14,26 +14,20 @@ const BASE_HEADERS = { "Content-Type": "application/json", apikey: ANON };
 export async function signIn(email: string, password: string) {
   try {
     const endpoint = `${URL}/auth/v1/token?grant_type=password`;
-    console.log("[signIn] URL:", URL ? URL.slice(0, 30) + "..." : "MISSING");
-    console.log("[signIn] ANON:", ANON ? ANON.slice(0, 10) + "..." : "MISSING");
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { ...BASE_HEADERS, Authorization: `Bearer ${ANON}` },
       body: JSON.stringify({ email, password }),
     });
 
-    console.log("[signIn] status:", res.status, res.statusText);
-    const text = await res.text();
-    console.log("[signIn] body:", text.slice(0, 100));
-    const data = JSON.parse(text);
+    const data = await res.json();
     if (!res.ok) {
       return { error: data.error_description ?? data.message ?? "Invalid email or password" };
     }
 
     await setSessionCookie(data);
     return { redirectTo: "/redirect" };
-  } catch (err) {
-    console.error("[signIn]", err);
+  } catch {
     return { error: "Something went wrong. Please try again." };
   }
 }
