@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   addWorkout,
@@ -406,8 +406,64 @@ export function ProgramBuilder({
     refresh();
   }
 
+  // Total sets allocated to each focus area across the whole program. Each
+  // exercise's sets count toward every focus tag on that exercise. Sets from
+  // untagged exercises are surfaced separately so nothing is silently dropped.
+  const { focusVolume, untaggedSets } = useMemo(() => {
+    const map = new Map<string, number>();
+    let untagged = 0;
+    for (const w of initialWorkouts) {
+      for (const we of w.workout_exercises) {
+        const focuses = we.exercises?.muscle_groups ?? [];
+        if (focuses.length === 0) {
+          untagged += we.sets;
+          continue;
+        }
+        for (const f of focuses) {
+          map.set(f, (map.get(f) ?? 0) + we.sets);
+        }
+      }
+    }
+    return {
+      focusVolume: [...map.entries()].sort((a, b) => b[1] - a[1]),
+      untaggedSets: untagged,
+    };
+  }, [initialWorkouts]);
+
+  const totalSets = focusVolume.reduce((sum, [, n]) => sum + n, 0) + untaggedSets;
+
   return (
     <div className="space-y-4">
+      {totalSets > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Set volume by focus</CardTitle>
+              <Badge variant="secondary" className="text-xs">{totalSets} sets total</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {focusVolume.map(([focus, count]) => (
+                <div
+                  key={focus}
+                  className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs"
+                >
+                  <span className="font-medium capitalize">{focus}</span>
+                  <span className="font-bold text-primary tabular-nums">{count}</span>
+                </div>
+              ))}
+              {untaggedSets > 0 && (
+                <div className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1 text-xs text-muted-foreground">
+                  <span className="font-medium">untagged</span>
+                  <span className="font-bold tabular-nums">{untaggedSets}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-3">
         {initialWorkouts.map((w) => (
           <WorkoutCard key={w.id} workout={w} exercises={exercises} onUpdate={refresh} />
