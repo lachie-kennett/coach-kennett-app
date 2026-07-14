@@ -11,6 +11,7 @@ import {
   deleteWorkoutExercise,
   setSupersetGroup,
 } from "@/lib/actions/programs";
+import { createExercise } from "@/lib/actions/exercises";
 import { SESSION_TYPES } from "@/lib/session-types";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { SessionTypeCounts } from "@/components/programs/session-type-counts";
@@ -87,11 +88,42 @@ function AddExerciseDialog({
   const [restSeconds, setRestSeconds] = useState("90");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  // Exercises created inline during this dialog session, merged into the pool
+  // so a freshly-created exercise is immediately selectable before a refresh.
+  const [createdExercises, setCreatedExercises] = useState<Exercise[]>([]);
+  const [creating, setCreating] = useState(false);
 
-  const filtered = exercises.filter((ex) =>
+  const pool = [...createdExercises, ...exercises];
+  const filtered = pool.filter((ex) =>
     ex.name.toLowerCase().includes(search.toLowerCase())
   );
-  const selectedExercise = exercises.find((ex) => ex.id === exerciseId);
+  const selectedExercise = pool.find((ex) => ex.id === exerciseId);
+  const trimmedSearch = search.trim();
+  const hasExactMatch = pool.some(
+    (ex) => ex.name.toLowerCase() === trimmedSearch.toLowerCase()
+  );
+
+  async function handleQuickCreate() {
+    if (!trimmedSearch || creating) return;
+    setCreating(true);
+    const result = await createExercise({
+      name: trimmedSearch,
+      description: null,
+      youtube_url: null,
+      muscle_groups: [],
+    });
+    setCreating(false);
+    if (result.error || !result.id) {
+      toast.error(result.error ?? "Failed to create exercise");
+      return;
+    }
+    const newEx: Exercise = { id: result.id, name: trimmedSearch, youtube_url: null, muscle_groups: [] };
+    setCreatedExercises((prev) => [newEx, ...prev]);
+    setExerciseId(newEx.id);
+    setSearch(newEx.name);
+    setDropdownOpen(false);
+    toast.success(`"${newEx.name}" added to your library`);
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -113,13 +145,13 @@ function AddExerciseDialog({
     toast.success("Exercise added");
     setOpen(false);
     setSearch(""); setDropdownOpen(false); setExerciseId(""); setSets("3"); setReps("");
-    setWeightKg(""); setRestSeconds("90"); setNotes("");
+    setWeightKg(""); setRestSeconds("90"); setNotes(""); setCreatedExercises([]);
     onAdded();
     setLoading(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSearch(""); setDropdownOpen(false); setExerciseId(""); } }}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSearch(""); setDropdownOpen(false); setExerciseId(""); setCreatedExercises([]); } }}>
       <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full mt-2")}>
         <Plus className="mr-2 h-4 w-4" /> Add exercise
       </DialogTrigger>
@@ -148,27 +180,37 @@ function AddExerciseDialog({
             </div>
             {dropdownOpen && search && (
               <div className="max-h-44 overflow-y-auto rounded-md border bg-popover">
-                {filtered.length === 0 ? (
+                {filtered.map((ex) => (
+                  <button
+                    key={ex.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // prevent input blur before click registers
+                      setExerciseId(ex.id);
+                      setSearch(ex.name);
+                      setDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors",
+                      exerciseId === ex.id && "bg-secondary font-medium"
+                    )}
+                  >
+                    {ex.name}
+                  </button>
+                ))}
+                {trimmedSearch && !hasExactMatch && (
+                  <button
+                    type="button"
+                    disabled={creating}
+                    onMouseDown={(e) => { e.preventDefault(); handleQuickCreate(); }}
+                    className="flex w-full items-center gap-2 border-t px-3 py-2 text-left text-sm text-primary hover:bg-secondary transition-colors disabled:opacity-60"
+                  >
+                    <Plus className="h-3.5 w-3.5 shrink-0" />
+                    {creating ? "Creating…" : <>Create &ldquo;{trimmedSearch}&rdquo;</>}
+                  </button>
+                )}
+                {filtered.length === 0 && !trimmedSearch && (
                   <p className="px-3 py-2 text-sm text-muted-foreground">No exercises found</p>
-                ) : (
-                  filtered.map((ex) => (
-                    <button
-                      key={ex.id}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault(); // prevent input blur before click registers
-                        setExerciseId(ex.id);
-                        setSearch(ex.name);
-                        setDropdownOpen(false);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors",
-                        exerciseId === ex.id && "bg-secondary font-medium"
-                      )}
-                    >
-                      {ex.name}
-                    </button>
-                  ))
                 )}
               </div>
             )}

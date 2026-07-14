@@ -11,7 +11,7 @@ export async function createExercise(data: {
   description: string | null;
   youtube_url: string | null;
   muscle_groups: MuscleGroup[];
-}): Promise<{ error?: string }> {
+}): Promise<{ error?: string; id?: string }> {
   const user = await getSessionUser();
   if (!user) return { error: "Not authenticated" };
 
@@ -37,17 +37,17 @@ export async function createExercise(data: {
     return { error: `You already have an exercise called "${name}"` };
   }
 
-  const { error } = await admin.from("exercises").insert({
+  const { data: created, error } = await admin.from("exercises").insert({
     coach_id: user.id,
     name,
     description: data.description,
     youtube_url: data.youtube_url,
     muscle_groups: data.muscle_groups,
-  });
+  }).select("id").single();
 
   if (error) return { error: error.message };
   revalidatePath("/exercises");
-  return {};
+  return { id: (created as { id: string }).id };
 }
 
 export async function updateExercise(
