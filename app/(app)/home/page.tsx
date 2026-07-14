@@ -123,6 +123,16 @@ export default async function ClientHomePage() {
         <h1 className="text-2xl font-bold">{firstName}</h1>
       </div>
 
+      <a
+        href="https://wa.me/61439816501"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full rounded-md bg-[#25D366] text-white font-medium py-3 text-sm hover:bg-[#1ebe5c] transition-colors"
+      >
+        <MessageCircle className="h-4 w-4" />
+        Message coach
+      </a>
+
       {program ? (
         <Card>
           <CardHeader className="pb-2">
@@ -267,28 +277,17 @@ export default async function ClientHomePage() {
         </Card>
       )}
 
-      <div className={profile?.habit_tracker_url ? "grid grid-cols-2 gap-3" : ""}>
-        {profile?.habit_tracker_url && (
-          <a
-            href={profile.habit_tracker_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full rounded-md border border-border bg-card font-medium py-3 text-sm hover:bg-muted/50 transition-colors"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Habit tracker
-          </a>
-        )}
+      {profile?.habit_tracker_url && (
         <a
-          href="https://wa.me/61439816501"
+          href={profile.habit_tracker_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full rounded-md bg-[#25D366] text-white font-medium py-3 text-sm hover:bg-[#1ebe5c] transition-colors"
+          className="flex items-center justify-center gap-2 w-full rounded-md border border-border bg-card font-medium py-3 text-sm hover:bg-muted/50 transition-colors"
         >
-          <MessageCircle className="h-4 w-4" />
-          Message coach
+          <ExternalLink className="h-4 w-4" />
+          Habit tracker
         </a>
-      </div>
+      )}
     </div>
   );
 }
