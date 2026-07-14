@@ -31,7 +31,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   const { data: workoutsData } = await admin
     .from("program_workouts")
     .select(`
-      id, program_id, name, day_order,
+      id, program_id, name, day_order, session_type,
       workout_exercises (
         id, workout_id, exercise_id, sets, reps, weight_kg, rest_seconds, order_index, superset_group, notes,
         exercises (id, name, youtube_url, muscle_groups)

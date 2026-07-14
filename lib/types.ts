@@ -42,6 +42,7 @@ export interface ProgramWorkout {
   program_id: string;
   name: string;
   day_order: number;
+  session_type: string | null;
   created_at: string;
 }
 

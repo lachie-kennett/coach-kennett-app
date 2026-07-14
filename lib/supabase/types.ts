@@ -100,6 +100,7 @@ export type Database = {
           program_id: string;
           name: string;
           day_order: number;
+          session_type: string | null;
           created_at: string;
         };
         Insert: {
@@ -107,11 +108,13 @@ export type Database = {
           program_id: string;
           name: string;
           day_order?: number;
+          session_type?: string | null;
           created_at?: string;
         };
         Update: {
           name?: string;
           day_order?: number;
+          session_type?: string | null;
         };
         Relationships: [];
       };

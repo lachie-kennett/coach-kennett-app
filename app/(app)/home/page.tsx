@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Play, Trophy, ChevronRight, Dumbbell, CalendarDays, MessageCircle, ExternalLink } from "lucide-react";
+import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Profile, PersonalRecord, WorkoutLog, Exercise } from "@/lib/types";
 
-type WorkoutWithExercises = { id: string; name: string; day_order: number; workout_exercises: { id: string }[] };
+type WorkoutWithExercises = { id: string; name: string; day_order: number; session_type: string | null; workout_exercises: { id: string }[] };
 type ProgramWithWorkouts = { id: string; name: string; program_workouts: WorkoutWithExercises[] };
 type AssignmentRow = { start_date: string; end_date: string | null; programs: ProgramWithWorkouts | null };
 type PRRow = Pick<PersonalRecord, "id" | "weight_kg" | "reps"> & { exercises: Pick<Exercise, "name"> | null };
@@ -51,7 +52,7 @@ export default async function ClientHomePage() {
   ] = await Promise.all([
     admin
       .from("client_programs")
-      .select("start_date, end_date, programs(id, name, program_workouts(id, name, day_order, workout_exercises(id)))")
+      .select("start_date, end_date, programs(id, name, program_workouts(id, name, day_order, session_type, workout_exercises(id)))")
       .eq("client_id", user.id)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
@@ -168,7 +169,10 @@ export default async function ClientHomePage() {
                     <Dumbbell className="h-4 w-4 text-primary" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{w.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">{w.name}</p>
+                      <SessionTypeBadge type={w.session_type} className="shrink-0" />
+                    </div>
                     <p className="text-xs text-muted-foreground">{w.workout_exercises.length} exercises</p>
                   </div>
                 </Link>

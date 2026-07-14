@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, Dumbbell, Pencil, Play } from "lucide-react";
+import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { cn } from "@/lib/utils";
 
 type WorkoutExerciseRow = {
@@ -24,6 +25,7 @@ type WorkoutRow = {
   id: string;
   name: string;
   day_order: number;
+  session_type: string | null;
   workout_exercises: WorkoutExerciseRow[];
 };
 
@@ -62,7 +64,7 @@ export default async function ClientProgramPage({
       admin
         .from("program_workouts")
         .select(`
-          id, name, day_order,
+          id, name, day_order, session_type,
           workout_exercises (
             id, sets, reps, weight_kg, rest_seconds, order_index, notes, superset_group,
             exercises (id, name)
@@ -134,6 +136,7 @@ export default async function ClientProgramPage({
                     <span className="flex items-center gap-2">
                       <Dumbbell className="h-4 w-4 text-primary" />
                       {workout.name}
+                      <SessionTypeBadge type={workout.session_type} />
                     </span>
                     <Link
                       href={`/workouts/${workout.id}/start?forClient=${clientId}`}

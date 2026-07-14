@@ -44,6 +44,7 @@ create table program_workouts (
   program_id uuid not null references programs(id) on delete cascade,
   name text not null,
   day_order integer not null default 0,
+  session_type text,
   created_at timestamptz not null default now()
 );
 

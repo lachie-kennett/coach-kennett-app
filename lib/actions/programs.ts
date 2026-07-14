@@ -107,6 +107,7 @@ export async function addWorkout(params: {
   programId: string;
   name: string;
   dayOrder: number;
+  sessionType?: string | null;
 }): Promise<ActionResult> {
   const user = await getSessionUser();
   if (!user) return { error: "Not authenticated" };
@@ -117,9 +118,35 @@ export async function addWorkout(params: {
     program_id: params.programId,
     name: params.name,
     day_order: params.dayOrder,
+    session_type: params.sessionType ?? null,
   } as never);
   if (error) return { error: error.message };
   revalidatePath(`/programs/${params.programId}`);
+  return {};
+}
+
+export async function updateWorkout(params: {
+  workoutId: string;
+  name?: string;
+  sessionType?: string | null;
+}): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const programId = await ownedProgramForWorkout(admin, params.workoutId, user.id);
+  if (!programId) return { error: "Not authorized" };
+
+  const patch: Record<string, unknown> = {};
+  if (params.name !== undefined) patch.name = params.name;
+  if (params.sessionType !== undefined) patch.session_type = params.sessionType;
+  if (Object.keys(patch).length === 0) return {};
+
+  const { error } = await admin
+    .from("program_workouts")
+    .update(patch as never)
+    .eq("id", params.workoutId);
+  if (error) return { error: error.message };
+  revalidatePath(`/programs/${programId}`);
   return {};
 }
 
@@ -145,10 +172,10 @@ export async function duplicateWorkout(workoutId: string): Promise<ActionResult>
 
   const { data: original } = await admin
     .from("program_workouts")
-    .select("name, day_order")
+    .select("name, day_order, session_type")
     .eq("id", workoutId)
     .single();
-  const src = original as { name: string; day_order: number } | null;
+  const src = original as { name: string; day_order: number; session_type: string | null } | null;
   if (!src) return { error: "Workout not found" };
 
   const { data: created, error: createErr } = await admin
@@ -157,6 +184,7 @@ export async function duplicateWorkout(workoutId: string): Promise<ActionResult>
       program_id: programId,
       name: `${src.name} (copy)`,
       day_order: src.day_order + 1,
+      session_type: src.session_type,
     } as never)
     .select("id")
     .single();

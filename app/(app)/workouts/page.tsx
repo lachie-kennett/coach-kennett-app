@@ -6,10 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Play, Dumbbell } from "lucide-react";
+import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
-type WorkoutWithExercises = { id: string; name: string; day_order: number; workout_exercises: { id: string }[] };
+type WorkoutWithExercises = { id: string; name: string; day_order: number; session_type: string | null; workout_exercises: { id: string }[] };
 type ProgramWithWorkouts = { id: string; name: string; program_workouts: WorkoutWithExercises[] };
 type AssignmentRow = { id: string; is_active: boolean; start_date: string; programs: ProgramWithWorkouts | null };
 
@@ -24,7 +25,7 @@ export default async function WorkoutsPage() {
 
   const { data: assignmentsData } = await admin
     .from("client_programs")
-    .select("id, is_active, start_date, programs(id, name, program_workouts(id, name, day_order, workout_exercises(id)))")
+    .select("id, is_active, start_date, programs(id, name, program_workouts(id, name, day_order, session_type, workout_exercises(id)))")
     .eq("client_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -68,7 +69,10 @@ export default async function WorkoutsPage() {
                           <Dumbbell className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium">{w.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{w.name}</p>
+                            <SessionTypeBadge type={w.session_type} className="shrink-0" />
+                          </div>
                           <p className="text-xs text-muted-foreground">{w.workout_exercises.length} exercises</p>
                         </div>
                       </div>

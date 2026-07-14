@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, Clock, Play } from "lucide-react";
 import { VideoPreviewButton } from "@/components/workouts/video-preview-button";
+import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { cn } from "@/lib/utils";
 
 export default async function WorkoutDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,7 +18,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
   const { data: workoutData } = await admin
     .from("program_workouts")
     .select(`
-      id, name,
+      id, name, session_type,
       workout_exercises (
         id, sets, reps, weight_kg, rest_seconds, superset_group, notes, order_index,
         exercises (id, name, description, youtube_url, muscle_groups)
@@ -35,7 +36,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
     exercises: { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] } | null;
   };
 
-  const workout = workoutData as { id: string; name: string; workout_exercises: WeRow[] };
+  const workout = workoutData as { id: string; name: string; session_type: string | null; workout_exercises: WeRow[] };
   const sorted = [...workout.workout_exercises].sort((a, b) => a.order_index - b.order_index);
 
   const totalSets = sorted.reduce((sum, we) => sum + we.sets, 0);
@@ -48,6 +49,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="text-xl font-bold flex-1">{workout.name}</h1>
+        <SessionTypeBadge type={workout.session_type} />
       </div>
 
       <div className="flex gap-3">

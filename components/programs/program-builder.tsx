@@ -4,12 +4,15 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   addWorkout,
+  updateWorkout,
   deleteWorkout,
   duplicateWorkout,
   addWorkoutExercise,
   deleteWorkoutExercise,
   setSupersetGroup,
 } from "@/lib/actions/programs";
+import { SESSION_TYPES } from "@/lib/session-types";
+import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -48,6 +52,7 @@ interface Workout {
   program_id: string;
   name: string;
   day_order: number;
+  session_type: string | null;
   workout_exercises: WorkoutExercise[];
 }
 
@@ -269,14 +274,22 @@ function WorkoutCard({
     onUpdate();
   }
 
+  async function handleSetType(value: string | null) {
+    const sessionType = value === "none" ? null : value;
+    const { error } = await updateWorkout({ workoutId: workout.id, sessionType });
+    if (error) { toast.error(error); return; }
+    onUpdate();
+  }
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">{workout.name}</CardTitle>
-            <Badge variant="secondary" className="text-xs">{workout.workout_exercises.length} exercises</Badge>
+          <div className="flex items-center gap-2 min-w-0">
+            <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <CardTitle className="text-base truncate">{workout.name}</CardTitle>
+            <SessionTypeBadge type={workout.session_type} className="shrink-0" />
+            <Badge variant="secondary" className="text-xs shrink-0">{workout.workout_exercises.length} exercises</Badge>
           </div>
           <div className="flex items-center gap-1">
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleDuplicateWorkout} title="Duplicate">
@@ -294,6 +307,20 @@ function WorkoutCard({
 
       {expanded && (
         <CardContent className="pt-0">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-muted-foreground shrink-0">Session type</span>
+            <Select value={workout.session_type ?? "none"} onValueChange={(v) => v && handleSetType(v)}>
+              <SelectTrigger size="sm" className="h-8 flex-1 capitalize">
+                <SelectValue placeholder="Not set" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not set</SelectItem>
+                {SESSION_TYPES.map((t) => (
+                  <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {sorted.length > 0 ? (
             <div className="space-y-1.5 mb-2">
               {sorted.map((we) => {
@@ -382,6 +409,7 @@ export function ProgramBuilder({
 }) {
   const router = useRouter();
   const [newWorkoutName, setNewWorkoutName] = useState("");
+  const [newWorkoutType, setNewWorkoutType] = useState<string>("none");
   const [addingWorkout, setAddingWorkout] = useState(false);
 
   function refresh() {
@@ -397,11 +425,13 @@ export function ProgramBuilder({
       programId,
       name: newWorkoutName.trim(),
       dayOrder: initialWorkouts.length,
+      sessionType: newWorkoutType === "none" ? null : newWorkoutType,
     });
 
     if (error) { toast.error(error); setAddingWorkout(false); return; }
     toast.success("Workout added");
     setNewWorkoutName("");
+    setNewWorkoutType("none");
     setAddingWorkout(false);
     refresh();
   }
@@ -472,13 +502,24 @@ export function ProgramBuilder({
 
       <Separator />
 
-      <form onSubmit={handleAddWorkout} className="flex gap-2">
+      <form onSubmit={handleAddWorkout} className="flex flex-col sm:flex-row gap-2">
         <Input
           value={newWorkoutName}
           onChange={(e) => setNewWorkoutName(e.target.value)}
           placeholder="e.g. Day 1 — Lower Body"
           className="flex-1"
         />
+        <Select value={newWorkoutType} onValueChange={(v) => v && setNewWorkoutType(v)}>
+          <SelectTrigger className="sm:w-40 capitalize">
+            <SelectValue placeholder="Session type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No type</SelectItem>
+            {SESSION_TYPES.map((t) => (
+              <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button type="submit" disabled={addingWorkout || !newWorkoutName.trim()}>
           <Plus className="mr-2 h-4 w-4" /> Add workout
         </Button>
