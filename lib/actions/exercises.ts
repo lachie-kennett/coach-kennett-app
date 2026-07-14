@@ -24,9 +24,22 @@ export async function createExercise(data: {
 
   if (profile?.role !== "coach") return { error: "Not authorized" };
 
+  const name = data.name.trim();
+
+  // Reject a case-insensitive name collision within this coach's library.
+  const { data: dupes } = await admin
+    .from("exercises")
+    .select("id")
+    .eq("coach_id", user.id)
+    .ilike("name", name)
+    .limit(1);
+  if (dupes && dupes.length > 0) {
+    return { error: `You already have an exercise called "${name}"` };
+  }
+
   const { error } = await admin.from("exercises").insert({
     coach_id: user.id,
-    name: data.name,
+    name,
     description: data.description,
     youtube_url: data.youtube_url,
     muscle_groups: data.muscle_groups,
@@ -59,8 +72,22 @@ export async function updateExercise(
 
   if (existing?.coach_id !== user.id) return { error: "Not authorized" };
 
+  const name = data.name.trim();
+
+  // Reject renaming into a case-insensitive collision with another exercise.
+  const { data: dupes } = await admin
+    .from("exercises")
+    .select("id")
+    .eq("coach_id", user.id)
+    .ilike("name", name)
+    .neq("id", id)
+    .limit(1);
+  if (dupes && dupes.length > 0) {
+    return { error: `You already have an exercise called "${name}"` };
+  }
+
   const { error } = await admin.from("exercises").update({
-    name: data.name,
+    name,
     description: data.description,
     youtube_url: data.youtube_url,
     muscle_groups: data.muscle_groups,
