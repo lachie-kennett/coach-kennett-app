@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Play, Dumbbell } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
+import { SessionTypeCounts } from "@/components/programs/session-type-counts";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
@@ -60,6 +61,9 @@ export default async function WorkoutsPage() {
                   <p className="text-xs text-muted-foreground">
                     Started {new Date(a.start_date).toLocaleDateString("en-AU")}
                   </p>
+                  {workouts.some((w) => w.session_type) && (
+                    <SessionTypeCounts types={workouts.map((w) => w.session_type)} className="pt-1" />
+                  )}
                 </CardHeader>
                 <CardContent className="p-0">
                   {workouts.map((w) => (

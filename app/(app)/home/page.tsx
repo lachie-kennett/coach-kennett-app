@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Play, Trophy, ChevronRight, Dumbbell, CalendarDays, MessageCircle, ExternalLink } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
+import { SessionTypeCounts } from "@/components/programs/session-type-counts";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Profile, PersonalRecord, WorkoutLog, Exercise } from "@/lib/types";
@@ -155,6 +156,13 @@ export default async function ClientHomePage() {
                 </span>
                 <span className="text-xs font-semibold text-primary">{prog.pct}%</span>
               </div>
+            </div>
+          )}
+
+          {workouts.some((w) => w.session_type) && (
+            <div className="px-6 pb-4">
+              <p className="text-xs text-muted-foreground mb-2">This week</p>
+              <SessionTypeCounts types={workouts.map((w) => w.session_type)} />
             </div>
           )}
 

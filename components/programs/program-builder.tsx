@@ -13,6 +13,7 @@ import {
 } from "@/lib/actions/programs";
 import { SESSION_TYPES } from "@/lib/session-types";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
+import { SessionTypeCounts } from "@/components/programs/session-type-counts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -462,8 +463,25 @@ export function ProgramBuilder({
 
   const totalSets = focusVolume.reduce((sum, [, n]) => sum + n, 0) + untaggedSets;
 
+  const sessionTypes = initialWorkouts.map((w) => w.session_type);
+  const typedSessions = sessionTypes.filter(Boolean).length;
+
   return (
     <div className="space-y-4">
+      {typedSessions > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Weekly sessions</CardTitle>
+              <Badge variant="secondary" className="text-xs">{initialWorkouts.length} total</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <SessionTypeCounts types={sessionTypes} />
+          </CardContent>
+        </Card>
+      )}
+
       {totalSets > 0 && (
         <Card>
           <CardHeader className="pb-2">
