@@ -32,6 +32,7 @@ import {
 } from "@/lib/actions/programs";
 import { NewExerciseDialog } from "@/components/exercises/new-exercise-dialog";
 import { conditioningSummary } from "@/lib/workout-format";
+import { EditExerciseDialog } from "@/components/programs/edit-exercise-dialog";
 import { SESSION_TYPES } from "@/lib/session-types";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { SessionTypeCounts } from "@/components/programs/session-type-counts";
@@ -42,7 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2 } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -331,12 +332,14 @@ function SortableExerciseRow({
   isSelected,
   onToggleSelect,
   onDissolveSuperset,
+  onEditExercise,
   onDeleteExercise,
 }: {
   we: WorkoutExercise;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   onDissolveSuperset: (group: string) => void;
+  onEditExercise: (we: WorkoutExercise) => void;
   onDeleteExercise: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: we.id });
@@ -399,6 +402,15 @@ function SortableExerciseRow({
       <Button
         size="sm"
         variant="ghost"
+        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
+        onClick={(e) => { e.stopPropagation(); onEditExercise(we); }}
+        title="Edit sets, reps…"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
         onClick={(e) => { e.stopPropagation(); onDeleteExercise(we.id); }}
       >
@@ -420,6 +432,7 @@ function WorkoutCard({
   onUpdate: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [editingWe, setEditingWe] = useState<WorkoutExercise | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const sorted = [...workout.workout_exercises].sort((a, b) => a.order_index - b.order_index);
@@ -565,6 +578,7 @@ function WorkoutCard({
                       isSelected={selected.has(we.id)}
                       onToggleSelect={toggleSelect}
                       onDissolveSuperset={handleDissolveSuperset}
+                      onEditExercise={setEditingWe}
                       onDeleteExercise={handleDeleteExercise}
                     />
                   ))}
@@ -599,6 +613,13 @@ function WorkoutCard({
           </div>
         </CardContent>
       )}
+
+      <EditExerciseDialog
+        we={editingWe}
+        open={!!editingWe}
+        onOpenChange={(o) => !o && setEditingWe(null)}
+        onSaved={onUpdate}
+      />
     </Card>
   );
 }

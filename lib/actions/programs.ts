@@ -282,6 +282,41 @@ export async function addWorkoutExercise(params: {
   return {};
 }
 
+// Updates the prescription of an existing workout exercise (not its exercise
+// or block type). Conditioning fields are ignored for strength blocks.
+export async function updateWorkoutExercise(params: {
+  workoutExerciseId: string;
+  sets: number;
+  reps: string;
+  weightKg: number | null;
+  restSeconds: number;
+  workSeconds?: number | null;
+  intensity?: string | null;
+  notes: string | null;
+}): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const programId = await ownedWorkoutExercise(admin, params.workoutExerciseId, user.id);
+  if (!programId) return { error: "Not authorized" };
+
+  const { error } = await admin
+    .from("workout_exercises")
+    .update({
+      sets: params.sets,
+      reps: params.reps,
+      weight_kg: params.weightKg,
+      rest_seconds: params.restSeconds,
+      work_seconds: params.workSeconds ?? null,
+      intensity: params.intensity ?? null,
+      notes: params.notes,
+    } as never)
+    .eq("id", params.workoutExerciseId);
+  if (error) return { error: error.message };
+  revalidatePath(`/programs/${programId}`);
+  return {};
+}
+
 // For a workout_exercise id, confirm ownership and return { programId, workoutId }.
 async function ownedWorkoutExercise(
   admin: ReturnType<typeof createAdminClient>,
