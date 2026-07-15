@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, Clock, Play } from "lucide-react";
 import { VideoPreviewButton } from "@/components/workouts/video-preview-button";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
+import { conditioningSummary } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
 
 export default async function WorkoutDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,7 +21,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
     .select(`
       id, name, session_type,
       workout_exercises (
-        id, sets, reps, weight_kg, rest_seconds, superset_group, notes, order_index,
+        id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, notes, order_index,
         exercises (id, name, description, youtube_url, muscle_groups)
       )
     `)
@@ -30,8 +31,9 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
   if (!workoutData) notFound();
 
   type WeRow = {
-    id: string; sets: number; reps: string; weight_kg: number | null;
-    rest_seconds: number; superset_group: string | null; notes: string | null;
+    id: string; block_type: string; sets: number; reps: string; weight_kg: number | null;
+    rest_seconds: number; work_seconds: number | null; intensity: string | null;
+    superset_group: string | null; notes: string | null;
     order_index: number;
     exercises: { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] } | null;
   };
@@ -85,9 +87,9 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                       {ex && <VideoPreviewButton exercise={ex} />}
                     </div>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      {we.sets} sets × {we.reps}
-                      {we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}
-                      {" · "}{we.rest_seconds}s rest
+                      {we.block_type === "conditioning"
+                        ? conditioningSummary(we)
+                        : <>{we.sets} sets × {we.reps}{we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}{" · "}{we.rest_seconds}s rest</>}
                     </p>
                     {we.notes && (
                       <p className="text-xs text-muted-foreground mt-1 italic">{we.notes}</p>

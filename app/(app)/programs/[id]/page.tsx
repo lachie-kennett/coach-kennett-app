@@ -57,7 +57,7 @@ export default async function ProgramDetailPage({
     .select(`
       id, program_id, name, day_order, session_type,
       workout_exercises (
-        id, workout_id, exercise_id, sets, reps, weight_kg, rest_seconds, order_index, superset_group, notes,
+        id, workout_id, exercise_id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, order_index, superset_group, notes,
         exercises (id, name, youtube_url, muscle_groups)
       )
     `)

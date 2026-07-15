@@ -237,10 +237,13 @@ export async function duplicateWorkout(workoutId: string): Promise<ActionResult>
 export async function addWorkoutExercise(params: {
   workoutId: string;
   exerciseId: string;
+  blockType?: "strength" | "conditioning";
   sets: number;
   reps: string;
   weightKg: number | null;
   restSeconds: number;
+  workSeconds?: number | null;
+  intensity?: string | null;
   notes: string | null;
 }): Promise<ActionResult> {
   const user = await getSessionUser();
@@ -263,10 +266,13 @@ export async function addWorkoutExercise(params: {
   const { error } = await admin.from("workout_exercises").insert({
     workout_id: params.workoutId,
     exercise_id: params.exerciseId,
+    block_type: params.blockType ?? "strength",
     sets: params.sets,
     reps: params.reps,
     weight_kg: params.weightKg,
     rest_seconds: params.restSeconds,
+    work_seconds: params.workSeconds ?? null,
+    intensity: params.intensity ?? null,
     order_index: orderIndex,
     superset_group: null,
     notes: params.notes,

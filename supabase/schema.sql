@@ -52,10 +52,13 @@ create table workout_exercises (
   id uuid primary key default uuid_generate_v4(),
   workout_id uuid not null references program_workouts(id) on delete cascade,
   exercise_id uuid not null references exercises(id) on delete cascade,
+  block_type text not null default 'strength', -- 'strength' | 'conditioning'
   sets integer not null default 3,
   reps text not null default '10',
   weight_kg numeric(6,2),
   rest_seconds integer not null default 60,
+  work_seconds integer,   -- conditioning: work interval length
+  intensity text,         -- conditioning: zone / pace / intensity
   order_index integer not null default 0,
   superset_group text,
   notes text

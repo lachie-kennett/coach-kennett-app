@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { VideoPreviewButton } from "@/components/workouts/video-preview-button";
 import { Check, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Trophy, X, Timer, Plus, Minus, Search, Dumbbell } from "lucide-react";
 import { toast } from "sonner";
+import { conditioningSummary } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
 
 interface Exercise {
@@ -19,8 +20,9 @@ interface Exercise {
   youtube_url: string | null; muscle_groups: string[];
 }
 interface WorkoutExercise {
-  id: string; sets: number; reps: string; weight_kg: number | null;
-  rest_seconds: number; superset_group: string | null; notes: string | null;
+  id: string; block_type: string; sets: number; reps: string; weight_kg: number | null;
+  rest_seconds: number; work_seconds: number | null; intensity: string | null;
+  superset_group: string | null; notes: string | null;
   order_index: number; exercises: Exercise;
 }
 interface Workout { id: string; name: string; workout_exercises: WorkoutExercise[] }
@@ -179,16 +181,18 @@ export function WorkoutPlayer({
   // the athlete can alternate) or a single exercise. Ad-hoc exercises added
   // mid-session are appended as their own pages.
   type BlockItem = {
-    id: string; exercise: Exercise; isAdHoc: boolean;
-    supersetGroup: string | null; reps: string; weightKg: number | null;
-    restSeconds: number; notes: string | null; targetSets: number;
+    id: string; exercise: Exercise; isAdHoc: boolean; blockType: string;
+    supersetGroup: string | null; sets: number; reps: string; weightKg: number | null;
+    restSeconds: number; workSeconds: number | null; intensity: string | null;
+    notes: string | null; targetSets: number;
   };
   const programPages: BlockItem[][] = (() => {
     const sorted = [...exercises].sort((a, b) => a.order_index - b.order_index);
     const toItem = (w: WorkoutExercise): BlockItem => ({
-      id: w.id, exercise: w.exercises, isAdHoc: false,
-      supersetGroup: w.superset_group, reps: w.reps, weightKg: w.weight_kg,
-      restSeconds: w.rest_seconds, notes: w.notes, targetSets: w.sets,
+      id: w.id, exercise: w.exercises, isAdHoc: false, blockType: w.block_type,
+      supersetGroup: w.superset_group, sets: w.sets, reps: w.reps, weightKg: w.weight_kg,
+      restSeconds: w.rest_seconds, workSeconds: w.work_seconds, intensity: w.intensity,
+      notes: w.notes, targetSets: w.sets,
     });
     const pages: BlockItem[][] = [];
     const seen = new Set<string>();
@@ -205,8 +209,9 @@ export function WorkoutPlayer({
     return pages;
   })();
   const adHocPages: BlockItem[][] = adHocExercises.map((ah) => [{
-    id: ah.sessionExId, exercise: ah.exercise, isAdHoc: true,
-    supersetGroup: null, reps: "", weightKg: null, restSeconds: 90, notes: null, targetSets: ah.sets ?? 3,
+    id: ah.sessionExId, exercise: ah.exercise, isAdHoc: true, blockType: "strength",
+    supersetGroup: null, sets: ah.sets ?? 3, reps: "", weightKg: null, restSeconds: 90,
+    workSeconds: null, intensity: null, notes: null, targetSets: ah.sets ?? 3,
   }]);
   const pages = [...programPages, ...adHocPages];
   const totalPages = pages.length;
@@ -241,7 +246,10 @@ export function WorkoutPlayer({
     const initRpe: Record<string, number | null> = {};
 
     for (const we of exercises) {
-      initSets[we.id] = Array.from({ length: we.sets }, (_, i) => {
+      // Conditioning blocks are logged with a single "Done" (per design), so
+      // they get one set entry regardless of the prescribed rounds.
+      const numSets = we.block_type === "conditioning" ? 1 : we.sets;
+      initSets[we.id] = Array.from({ length: numSets }, (_, i) => {
         const prev = mostRecent?.set_logs.find(
           (p) => p.workout_exercise_id === we.id && p.set_number === i + 1
         );
@@ -467,10 +475,17 @@ export function WorkoutPlayer({
                       {item.isAdHoc && (
                         <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>
                       )}
+                      {item.blockType === "conditioning" && (
+                        <Badge variant="secondary" className="text-xs shrink-0">Conditioning</Badge>
+                      )}
                       <h2 className="text-lg font-bold">{item.exercise.name}</h2>
                       <VideoPreviewButton exercise={item.exercise} />
                     </div>
-                    {!item.isAdHoc && (
+                    {item.blockType === "conditioning" ? (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {conditioningSummary({ sets: item.sets, reps: item.reps, work_seconds: item.workSeconds, rest_seconds: item.restSeconds, intensity: item.intensity })}
+                      </p>
+                    ) : !item.isAdHoc && (
                       <p className="text-sm text-muted-foreground mt-1">
                         {entries.length || item.targetSets} sets × {item.reps}
                         {item.weightKg ? ` @ ${item.weightKg}kg` : ""}
@@ -490,7 +505,22 @@ export function WorkoutPlayer({
                   )}
                 </div>
 
-                {/* Sets */}
+                {item.blockType === "conditioning" ? (
+                  /* Conditioning: single Done for the whole block */
+                  <Button
+                    size="lg"
+                    variant={entries[0]?.completed ? "default" : "outline"}
+                    className="w-full h-12"
+                    disabled={entries[0]?.completed}
+                    onClick={() => !entries[0]?.completed && completeSet(
+                      item.id, item.exercise.id, item.exercise.name, 0, item.restSeconds, item.isAdHoc,
+                    )}
+                  >
+                    <Check className="h-5 w-5 mr-2" />
+                    {entries[0]?.completed ? "Done" : "Mark done"}
+                  </Button>
+                ) : (
+                /* Sets */
                 <div className="space-y-2">
                   <div className="grid grid-cols-[2rem_1fr_1fr_2.5rem_2rem] gap-2 px-1">
                     <span className="text-xs text-muted-foreground text-center">Set</span>
@@ -561,9 +591,12 @@ export function WorkoutPlayer({
                     <Plus className="h-3.5 w-3.5" /> Add set
                   </button>
                 </div>
+                )}
 
-                {/* History (program exercises only) */}
-                {!item.isAdHoc && <SessionHistory weId={item.id} sessions={previousSessions} timezone={timezone} />}
+                {/* History (program strength exercises only) */}
+                {!item.isAdHoc && item.blockType !== "conditioning" && (
+                  <SessionHistory weId={item.id} sessions={previousSessions} timezone={timezone} />
+                )}
 
                 {/* Exercise RPE */}
                 <div className="space-y-1.5">

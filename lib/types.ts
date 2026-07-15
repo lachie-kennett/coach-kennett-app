@@ -50,10 +50,13 @@ export interface WorkoutExercise {
   id: string;
   workout_id: string;
   exercise_id: string;
+  block_type: string;
   sets: number;
   reps: string;
   weight_kg: number | null;
   rest_seconds: number;
+  work_seconds: number | null;
+  intensity: string | null;
   order_index: number;
   superset_group: string | null;
   notes: string | null;

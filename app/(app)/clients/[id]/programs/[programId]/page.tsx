@@ -8,14 +8,18 @@ import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, Dumbbell, Pencil, Play } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { ProgramLengthEditor } from "@/components/programs/program-length-editor";
+import { conditioningSummary } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
 
 type WorkoutExerciseRow = {
   id: string;
+  block_type: string;
   sets: number;
   reps: string;
   weight_kg: number | null;
   rest_seconds: number;
+  work_seconds: number | null;
+  intensity: string | null;
   order_index: number;
   notes: string | null;
   superset_group: string | null;
@@ -67,7 +71,7 @@ export default async function ClientProgramPage({
         .select(`
           id, name, day_order, session_type,
           workout_exercises (
-            id, sets, reps, weight_kg, rest_seconds, order_index, notes, superset_group,
+            id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, order_index, notes, superset_group,
             exercises (id, name)
           )
         `)
@@ -169,12 +173,18 @@ export default async function ClientProgramPage({
                             )}
                           </div>
                           <div className="shrink-0 text-right">
-                            <p className="text-sm font-semibold">
-                              {ex.sets} × {ex.reps}
-                              {ex.weight_kg ? ` @ ${ex.weight_kg}kg` : ""}
-                            </p>
-                            {ex.rest_seconds > 0 && (
-                              <p className="text-xs text-muted-foreground">{ex.rest_seconds}s rest</p>
+                            {ex.block_type === "conditioning" ? (
+                              <p className="text-sm font-semibold max-w-[12rem]">{conditioningSummary(ex)}</p>
+                            ) : (
+                              <>
+                                <p className="text-sm font-semibold">
+                                  {ex.sets} × {ex.reps}
+                                  {ex.weight_kg ? ` @ ${ex.weight_kg}kg` : ""}
+                                </p>
+                                {ex.rest_seconds > 0 && (
+                                  <p className="text-xs text-muted-foreground">{ex.rest_seconds}s rest</p>
+                                )}
+                              </>
                             )}
                           </div>
                         </li>

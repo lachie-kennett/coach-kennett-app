@@ -6,8 +6,9 @@ import { WorkoutPlayer } from "@/components/workouts/workout-player";
 
 type Exercise = { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] };
 type WorkoutExercise = {
-  id: string; sets: number; reps: string; weight_kg: number | null;
-  rest_seconds: number; superset_group: string | null; notes: string | null;
+  id: string; block_type: string; sets: number; reps: string; weight_kg: number | null;
+  rest_seconds: number; work_seconds: number | null; intensity: string | null;
+  superset_group: string | null; notes: string | null;
   order_index: number; exercises: Exercise;
 };
 type WorkoutRow = { id: string; name: string; workout_exercises: WorkoutExercise[] };
@@ -52,7 +53,7 @@ export default async function StartWorkoutPage({
     .select(`
       id, name,
       workout_exercises (
-        id, sets, reps, weight_kg, rest_seconds, superset_group, notes, order_index,
+        id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, notes, order_index,
         exercises (id, name, description, youtube_url, muscle_groups)
       )
     `)

@@ -31,6 +31,7 @@ import {
   reorderWorkoutExercises,
 } from "@/lib/actions/programs";
 import { NewExerciseDialog } from "@/components/exercises/new-exercise-dialog";
+import { conditioningSummary } from "@/lib/workout-format";
 import { SESSION_TYPES } from "@/lib/session-types";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { SessionTypeCounts } from "@/components/programs/session-type-counts";
@@ -56,10 +57,13 @@ interface WorkoutExercise {
   id: string;
   workout_id: string;
   exercise_id: string;
+  block_type: string;
   sets: number;
   reps: string;
   weight_kg: number | null;
   rest_seconds: number;
+  work_seconds: number | null;
+  intensity: string | null;
   order_index: number;
   superset_group: string | null;
   notes: string | null;
@@ -88,6 +92,7 @@ function AddExercisePanel({
   exercises: Exercise[];
   onAdded: () => void;
 }) {
+  const [blockType, setBlockType] = useState<"strength" | "conditioning">("strength");
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [exerciseId, setExerciseId] = useState("");
@@ -95,8 +100,16 @@ function AddExercisePanel({
   const [reps, setReps] = useState("");
   const [weightKg, setWeightKg] = useState("");
   const [restSeconds, setRestSeconds] = useState("90");
+  // Conditioning-only fields (work/rest as min:sec, plus intensity)
+  const [workMin, setWorkMin] = useState("");
+  const [workSec, setWorkSec] = useState("");
+  const [restMin, setRestMin] = useState("");
+  const [restSec, setRestSec] = useState("");
+  const [intensity, setIntensity] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const isConditioning = blockType === "conditioning";
   // Exercises created inline this session, merged into the pool so a freshly
   // created exercise is immediately selectable before a refresh.
   const [createdExercises, setCreatedExercises] = useState<Exercise[]>([]);
@@ -119,6 +132,10 @@ function AddExercisePanel({
     setDropdownOpen(false);
   }
 
+  function toSeconds(min: string, sec: string): number {
+    return (parseInt(min) || 0) * 60 + (parseInt(sec) || 0);
+  }
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!exerciseId || !activeWorkoutId) return;
@@ -127,16 +144,19 @@ function AddExercisePanel({
     const { error } = await addWorkoutExercise({
       workoutId: activeWorkoutId,
       exerciseId,
-      sets: parseInt(sets),
+      blockType,
+      sets: parseInt(sets) || 1,
       reps,
-      weightKg: weightKg ? parseFloat(weightKg) : null,
-      restSeconds: parseInt(restSeconds),
+      weightKg: isConditioning ? null : weightKg ? parseFloat(weightKg) : null,
+      restSeconds: isConditioning ? toSeconds(restMin, restSec) : parseInt(restSeconds),
+      workSeconds: isConditioning ? toSeconds(workMin, workSec) || null : null,
+      intensity: isConditioning ? intensity.trim() || null : null,
       notes: notes || null,
     });
 
     if (error) { toast.error(error); setLoading(false); return; }
-    // Keep the panel open and hold sets/reps/rest so the coach can keep adding.
-    // Only clear the exercise + notes, then refocus the search.
+    // Keep the panel open and hold the prescription so the coach can keep
+    // adding. Only clear the exercise + notes, then refocus the search.
     setSearch(""); setExerciseId(""); setNotes(""); setDropdownOpen(false);
     onAdded();
     setLoading(false);
@@ -155,6 +175,23 @@ function AddExercisePanel({
           <p className="text-sm text-muted-foreground">Add a workout day below first, then add exercises here.</p>
         ) : (
           <form onSubmit={handleAdd} className="space-y-4">
+            {/* Block type toggle */}
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1">
+              {(["strength", "conditioning"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setBlockType(t)}
+                  className={cn(
+                    "rounded-md py-1.5 text-sm font-medium capitalize transition-colors",
+                    blockType === t ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
             {/* Target day */}
             <div className="space-y-2">
               <Label>Day</Label>
@@ -170,14 +207,14 @@ function AddExercisePanel({
               </Select>
             </div>
 
-            {/* Exercise search */}
+            {/* Exercise / method search */}
             <div className="space-y-2">
-              <Label>Exercise</Label>
+              <Label>{isConditioning ? "Method" : "Exercise"}</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   ref={searchRef}
-                  placeholder="Search or create…"
+                  placeholder={isConditioning ? "Run, Bike, Row…" : "Search or create…"}
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
@@ -229,15 +266,41 @@ function AddExercisePanel({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="we-sets">Sets</Label>
+                <Label htmlFor="we-sets">{isConditioning ? "Sets / rounds" : "Sets"}</Label>
                 <Input id="we-sets" type="number" min="1" value={sets} onChange={(e) => setSets(e.target.value)} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="we-reps">Reps</Label>
-                <Input id="we-reps" value={reps} onChange={(e) => setReps(e.target.value)} required placeholder="10 or 8-12" />
+                <Input id="we-reps" value={reps} onChange={(e) => setReps(e.target.value)} required={!isConditioning} placeholder={isConditioning ? "400m, 20 cals…" : "10 or 8-12"} />
               </div>
             </div>
 
+            {isConditioning ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Work time</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Input type="number" min="0" inputMode="numeric" placeholder="min" value={workMin} onChange={(e) => setWorkMin(e.target.value)} className="text-center" />
+                      <span className="text-muted-foreground">:</span>
+                      <Input type="number" min="0" max="59" inputMode="numeric" placeholder="sec" value={workSec} onChange={(e) => setWorkSec(e.target.value)} className="text-center" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Rest time</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Input type="number" min="0" inputMode="numeric" placeholder="min" value={restMin} onChange={(e) => setRestMin(e.target.value)} className="text-center" />
+                      <span className="text-muted-foreground">:</span>
+                      <Input type="number" min="0" max="59" inputMode="numeric" placeholder="sec" value={restSec} onChange={(e) => setRestSec(e.target.value)} className="text-center" />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="we-intensity">Zone / pace / intensity</Label>
+                  <Input id="we-intensity" value={intensity} onChange={(e) => setIntensity(e.target.value)} placeholder="e.g. Zone 2, 5:00/km, RPE 7" />
+                </div>
+              </>
+            ) : (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="we-weight">Weight (kg)</Label>
@@ -248,6 +311,7 @@ function AddExercisePanel({
                 <Input id="we-rest" type="number" min="0" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} />
               </div>
             </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="we-notes">Notes (optional)</Label>
@@ -329,11 +393,16 @@ function SortableExerciseRow({
         <span className="w-4 shrink-0" />
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{we.exercises?.name}</p>
-        <p className="text-xs text-muted-foreground">
-          {we.sets} × {we.reps}
-          {we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}
-          {" · "}{we.rest_seconds}s rest
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium truncate">{we.exercises?.name}</p>
+          {we.block_type === "conditioning" && (
+            <Badge variant="secondary" className="text-[10px] shrink-0 px-1.5 py-0">Cond</Badge>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground truncate">
+          {we.block_type === "conditioning"
+            ? conditioningSummary(we)
+            : <>{we.sets} × {we.reps}{we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}{" · "}{we.rest_seconds}s rest</>}
         </p>
       </div>
       <Button
