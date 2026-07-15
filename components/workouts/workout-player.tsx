@@ -174,11 +174,43 @@ export function WorkoutPlayer({
   const [sessionRpe, setSessionRpe] = useState<number | null>(null);
 
   const exercises = workout.workout_exercises;
-  const currentEx = exercises[currentExIdx];
-  const currentAdHoc = currentExIdx >= exercises.length
-    ? adHocExercises[currentExIdx - exercises.length]
-    : null;
-  const totalExCount = exercises.length + adHocExercises.length;
+
+  // A "page" is a superset (all exercises sharing a letter, shown together so
+  // the athlete can alternate) or a single exercise. Ad-hoc exercises added
+  // mid-session are appended as their own pages.
+  type BlockItem = {
+    id: string; exercise: Exercise; isAdHoc: boolean;
+    supersetGroup: string | null; reps: string; weightKg: number | null;
+    restSeconds: number; notes: string | null; targetSets: number;
+  };
+  const programPages: BlockItem[][] = (() => {
+    const sorted = [...exercises].sort((a, b) => a.order_index - b.order_index);
+    const toItem = (w: WorkoutExercise): BlockItem => ({
+      id: w.id, exercise: w.exercises, isAdHoc: false,
+      supersetGroup: w.superset_group, reps: w.reps, weightKg: w.weight_kg,
+      restSeconds: w.rest_seconds, notes: w.notes, targetSets: w.sets,
+    });
+    const pages: BlockItem[][] = [];
+    const seen = new Set<string>();
+    for (const we of sorted) {
+      if (we.superset_group) {
+        const g = we.superset_group.toUpperCase();
+        if (seen.has(g)) continue;
+        seen.add(g);
+        pages.push(sorted.filter((x) => x.superset_group?.toUpperCase() === g).map(toItem));
+      } else {
+        pages.push([toItem(we)]);
+      }
+    }
+    return pages;
+  })();
+  const adHocPages: BlockItem[][] = adHocExercises.map((ah) => [{
+    id: ah.sessionExId, exercise: ah.exercise, isAdHoc: true,
+    supersetGroup: null, reps: "", weightKg: null, restSeconds: 90, notes: null, targetSets: ah.sets ?? 3,
+  }]);
+  const pages = [...programPages, ...adHocPages];
+  const totalPages = pages.length;
+  const currentPage = pages[currentExIdx];
 
   // Most recent previous session
   const mostRecent = previousSessions[0];
@@ -289,9 +321,8 @@ export function WorkoutPlayer({
       return { ...prev, [weOrAhId]: copy };
     });
 
-    const isLastSetOfExercise = setIdx === (sets[weOrAhId]?.length ?? 0) - 1;
-    const isLastExercise = currentExIdx === totalExCount - 1;
-    if (!(isLastSetOfExercise && isLastExercise)) {
+    // Offer a rest unless this completes the very last set of the whole workout.
+    if (totalCompleted + 1 < totalSets) {
       setRestSeconds(restSecs);
       setShowRestButton(true);
     }
@@ -354,7 +385,7 @@ export function WorkoutPlayer({
         ...prev,
         [sessionExId]: [{ reps: "", weight: "", completed: false, isPR: false }, { reps: "", weight: "", completed: false, isPR: false }, { reps: "", weight: "", completed: false, isPR: false }],
       }));
-      setCurrentExIdx(exercises.length + adHocExercises.length);
+      setCurrentExIdx(programPages.length + adHocExercises.length);
     } catch {
       toast.error("Failed to add exercise");
     }
@@ -378,14 +409,12 @@ export function WorkoutPlayer({
     router.push(cancelPath);
   }
 
-  const activeId = currentEx?.id ?? currentAdHoc?.sessionExId ?? "";
-  const completedSets = sets[activeId]?.filter((s) => s.completed).length ?? 0;
   const totalCompleted = Object.values(sets).reduce((sum, arr) => sum + arr.filter((s) => s.completed).length, 0);
   const totalSets = exercises.reduce((sum, we) => sum + (sets[we.id]?.length ?? we.sets), 0)
     + adHocExercises.reduce((sum, ah) => sum + (sets[ah.sessionExId]?.length ?? 0), 0);
   const overallProgress = totalSets > 0 ? (totalCompleted / totalSets) * 100 : 0;
 
-  if (!currentEx && !currentAdHoc) return null;
+  if (!currentPage) return null;
 
   return (
     <>
@@ -411,151 +440,155 @@ export function WorkoutPlayer({
           <p className="text-xs text-muted-foreground text-right">{totalCompleted}/{totalSets} sets</p>
         </div>
 
-        {/* Exercise card */}
+        {/* Exercise card(s) — a superset renders all its exercises together */}
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
-          {/* Exercise header */}
-          <div className="rounded-xl bg-card border border-border p-4 space-y-3">
-            {currentAdHoc ? (
-              <div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>
-                  <h2 className="text-lg font-bold">{currentAdHoc.exercise.name}</h2>
-                  <VideoPreviewButton exercise={currentAdHoc.exercise} />
-                </div>
-                {currentAdHoc.exercise.muscle_groups?.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {currentAdHoc.exercise.muscle_groups.map((m) => (
-                      <span key={m} className="text-xs text-muted-foreground">{m}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    {currentEx!.superset_group && (
-                      <Badge className="text-xs shrink-0">{currentEx!.superset_group}</Badge>
-                    )}
-                    <h2 className="text-lg font-bold">{currentEx!.exercises.name}</h2>
-                    <VideoPreviewButton exercise={currentEx!.exercises} />
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {sets[currentEx!.id]?.length ?? currentEx!.sets} sets × {currentEx!.reps}
-                    {currentEx!.weight_kg ? ` @ ${currentEx!.weight_kg}kg` : ""}
-                    {" · "}{currentEx!.rest_seconds}s rest
-                  </p>
-                  {currentEx!.notes && (
-                    <p className="text-xs text-muted-foreground/70 mt-1 italic">{currentEx!.notes}</p>
-                  )}
-                </div>
-              </div>
-            )}
-            {!currentAdHoc && currentEx!.exercises.muscle_groups?.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {currentEx!.exercises.muscle_groups.map((m) => (
-                  <span key={m} className="text-xs text-muted-foreground">{m}</span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Sets */}
-          <div className="space-y-2">
-            <div className="grid grid-cols-[2rem_1fr_1fr_2.5rem_2rem] gap-2 px-1">
-              <span className="text-xs text-muted-foreground text-center">Set</span>
-              <span className="text-xs text-muted-foreground text-center">Weight (kg)</span>
-              <span className="text-xs text-muted-foreground text-center">Reps</span>
-              <span />
-              <span />
+          {currentPage.length > 1 && (
+            <div className="flex items-center gap-2">
+              <Badge className="text-xs">{currentPage[0].supersetGroup}</Badge>
+              <span className="text-sm font-semibold text-primary">Superset — alternate between these</span>
             </div>
-            {(sets[activeId] ?? []).map((entry, i) => (
+          )}
+
+          {currentPage.map((item, itemIdx) => {
+            const isSuperset = currentPage.length > 1;
+            const entries = sets[item.id] ?? [];
+            return (
               <div
-                key={i}
-                className={cn(
-                  "grid grid-cols-[2rem_1fr_1fr_2.5rem_2rem] gap-2 items-center rounded-lg px-1 py-1.5 transition-colors",
-                  entry.completed ? "bg-primary/10" : "bg-secondary/40"
-                )}
+                key={item.id}
+                className={cn("space-y-4", isSuperset && "rounded-xl border border-primary/30 p-3")}
               >
-                <div className="flex items-center justify-center">
-                  {entry.isPR ? (
-                    <Trophy className="h-4 w-4 text-primary" />
-                  ) : (
-                    <span className="text-sm font-medium text-muted-foreground">{i + 1}</span>
+                {/* Exercise header */}
+                <div className="rounded-xl bg-card border border-border p-4 space-y-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {item.supersetGroup && (
+                        <Badge className="text-xs shrink-0">{item.supersetGroup}{isSuperset ? itemIdx + 1 : ""}</Badge>
+                      )}
+                      {item.isAdHoc && (
+                        <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>
+                      )}
+                      <h2 className="text-lg font-bold">{item.exercise.name}</h2>
+                      <VideoPreviewButton exercise={item.exercise} />
+                    </div>
+                    {!item.isAdHoc && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {entries.length || item.targetSets} sets × {item.reps}
+                        {item.weightKg ? ` @ ${item.weightKg}kg` : ""}
+                        {" · "}{item.restSeconds}s rest
+                      </p>
+                    )}
+                    {item.notes && (
+                      <p className="text-xs text-muted-foreground/70 mt-1 italic">{item.notes}</p>
+                    )}
+                  </div>
+                  {item.exercise.muscle_groups?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {item.exercise.muscle_groups.map((m) => (
+                        <span key={m} className="text-xs text-muted-foreground">{m}</span>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <Input
-                  type="number" inputMode="decimal" step="0.5" placeholder="0"
-                  value={entry.weight}
-                  onChange={(e) => updateSet(activeId, i, "weight", e.target.value)}
-                  disabled={entry.completed} className="h-10 text-center text-base"
-                />
-                <Input
-                  type="number" inputMode="numeric" placeholder="0"
-                  value={entry.reps}
-                  onChange={(e) => updateSet(activeId, i, "reps", e.target.value)}
-                  disabled={entry.completed} className="h-10 text-center text-base"
-                />
-                <Button
-                  size="sm" variant={entry.completed ? "default" : "outline"}
-                  className="h-10 w-10 p-0"
-                  onClick={() => !entry.completed && completeSet(
-                    activeId,
-                    currentAdHoc?.exercise.id ?? currentEx!.exercises.id,
-                    currentAdHoc?.exercise.name ?? currentEx!.exercises.name,
-                    i,
-                    currentAdHoc ? 90 : currentEx!.rest_seconds,
-                    !!currentAdHoc,
-                  )}
-                  disabled={entry.completed}
-                >
-                  <Check className="h-4 w-4" />
-                </Button>
-                {!entry.completed && (
+
+                {/* Sets */}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[2rem_1fr_1fr_2.5rem_2rem] gap-2 px-1">
+                    <span className="text-xs text-muted-foreground text-center">Set</span>
+                    <span className="text-xs text-muted-foreground text-center">Weight (kg)</span>
+                    <span className="text-xs text-muted-foreground text-center">Reps</span>
+                    <span />
+                    <span />
+                  </div>
+                  {entries.map((entry, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "grid grid-cols-[2rem_1fr_1fr_2.5rem_2rem] gap-2 items-center rounded-lg px-1 py-1.5 transition-colors",
+                        entry.completed ? "bg-primary/10" : "bg-secondary/40"
+                      )}
+                    >
+                      <div className="flex items-center justify-center">
+                        {entry.isPR ? (
+                          <Trophy className="h-4 w-4 text-primary" />
+                        ) : (
+                          <span className="text-sm font-medium text-muted-foreground">{i + 1}</span>
+                        )}
+                      </div>
+                      <Input
+                        type="number" inputMode="decimal" step="0.5" placeholder="0"
+                        value={entry.weight}
+                        onChange={(e) => updateSet(item.id, i, "weight", e.target.value)}
+                        disabled={entry.completed} className="h-10 text-center text-base"
+                      />
+                      <Input
+                        type="number" inputMode="numeric" placeholder="0"
+                        value={entry.reps}
+                        onChange={(e) => updateSet(item.id, i, "reps", e.target.value)}
+                        disabled={entry.completed} className="h-10 text-center text-base"
+                      />
+                      <Button
+                        size="sm" variant={entry.completed ? "default" : "outline"}
+                        className="h-10 w-10 p-0"
+                        onClick={() => !entry.completed && completeSet(
+                          item.id,
+                          item.exercise.id,
+                          item.exercise.name,
+                          i,
+                          item.restSeconds,
+                          item.isAdHoc,
+                        )}
+                        disabled={entry.completed}
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      {!entry.completed && (
+                        <button
+                          type="button"
+                          className="flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-destructive transition-colors"
+                          onClick={() => removeSet(item.id)}
+                          title="Remove set"
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                   <button
                     type="button"
-                    className="flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-destructive transition-colors"
-                    onClick={() => removeSet(activeId)}
-                    title="Remove set"
+                    onClick={() => addSet(item.id)}
+                    className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                   >
-                    <Minus className="h-3.5 w-3.5" />
+                    <Plus className="h-3.5 w-3.5" /> Add set
                   </button>
-                )}
+                </div>
+
+                {/* History (program exercises only) */}
+                {!item.isAdHoc && <SessionHistory weId={item.id} sessions={previousSessions} timezone={timezone} />}
+
+                {/* Exercise RPE */}
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Exercise RPE</p>
+                  <RpeButtons
+                    value={exerciseRpe[item.id] ?? null}
+                    onChange={(v) => handleExerciseRpe(item.id, v)}
+                  />
+                </div>
+
+                {/* Exercise notes */}
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Exercise notes</p>
+                  <Textarea
+                    placeholder="Add notes for this exercise…"
+                    value={exerciseNotes[item.id] ?? ""}
+                    onChange={(e) => setExerciseNotes((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                    onBlur={() => handleExerciseNotesBlur(item.id)}
+                    rows={2}
+                    className="text-sm resize-none"
+                  />
+                </div>
               </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => addSet(activeId)}
-              className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add set
-            </button>
-          </div>
-
-          {/* History (program exercises only) */}
-          {!currentAdHoc && <SessionHistory weId={currentEx!.id} sessions={previousSessions} timezone={timezone} />}
-
-          {/* Exercise RPE */}
-          <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground">Exercise RPE</p>
-            <RpeButtons
-              value={exerciseRpe[activeId] ?? null}
-              onChange={(v) => handleExerciseRpe(activeId, v)}
-            />
-          </div>
-
-          {/* Exercise notes */}
-          <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground">Exercise notes</p>
-            <Textarea
-              placeholder="Add notes for this exercise…"
-              value={exerciseNotes[activeId] ?? ""}
-              onChange={(e) => setExerciseNotes((prev) => ({ ...prev, [activeId]: e.target.value }))}
-              onBlur={() => handleExerciseNotesBlur(activeId)}
-              rows={2}
-              className="text-sm resize-none"
-            />
-          </div>
+            );
+          })}
         </div>
 
         {/* Footer navigation */}
@@ -587,7 +620,7 @@ export function WorkoutPlayer({
               disabled={currentExIdx === 0} onClick={() => setCurrentExIdx((i) => i - 1)}>
               <ChevronLeft className="h-4 w-4 mr-1" /> Prev
             </Button>
-            {currentExIdx < totalExCount - 1 ? (
+            {currentExIdx < totalPages - 1 ? (
               <Button size="sm" className="flex-1" onClick={() => setCurrentExIdx((i) => i + 1)}>
                 Next <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
@@ -597,27 +630,20 @@ export function WorkoutPlayer({
               </Button>
             )}
           </div>
-          <div className="flex items-center justify-center gap-1.5">
-            {exercises.map((_, i) => (
-              <button key={i} onClick={() => setCurrentExIdx(i)}
-                className={cn("rounded-full transition-all", i === currentExIdx
-                  ? "w-4 h-2 bg-primary"
-                  : sets[exercises[i].id]?.every((s) => s.completed)
-                  ? "w-2 h-2 bg-primary/40"
-                  : "w-2 h-2 bg-muted"
-                )}
-              />
-            ))}
-            {adHocExercises.map((ah, i) => (
-              <button key={ah.sessionExId} onClick={() => setCurrentExIdx(exercises.length + i)}
-                className={cn("rounded-full transition-all", (exercises.length + i) === currentExIdx
-                  ? "w-4 h-2 bg-primary"
-                  : sets[ah.sessionExId]?.every((s) => s.completed)
-                  ? "w-2 h-2 bg-primary/40"
-                  : "w-2 h-2 bg-muted"
-                )}
-              />
-            ))}
+          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+            {pages.map((page, i) => {
+              const complete = page.every((it) => (sets[it.id]?.length ?? 0) > 0 && sets[it.id]!.every((s) => s.completed));
+              return (
+                <button key={i} onClick={() => setCurrentExIdx(i)}
+                  className={cn("rounded-full transition-all", i === currentExIdx
+                    ? "w-4 h-2 bg-primary"
+                    : complete
+                    ? "w-2 h-2 bg-primary/40"
+                    : "w-2 h-2 bg-muted"
+                  )}
+                />
+              );
+            })}
           </div>
           <button
             type="button"
