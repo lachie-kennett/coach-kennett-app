@@ -5,10 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { ArrowLeft, Dumbbell, Pencil, Play } from "lucide-react";
+import { ArrowLeft, Dumbbell, Pencil, Play, Clock } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { ProgramLengthEditor } from "@/components/programs/program-length-editor";
-import { conditioningSummary } from "@/lib/workout-format";
+import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
 
 type WorkoutExerciseRow = {
@@ -150,6 +150,11 @@ export default async function ClientProgramPage({
                       <Dumbbell className="h-4 w-4 text-primary" />
                       {workout.name}
                       <SessionTypeBadge type={workout.session_type} />
+                      {conditioningTotalSeconds(workout.workout_exercises) > 0 && (
+                        <Badge variant="secondary" className="text-xs gap-1 font-normal">
+                          <Clock className="h-3 w-3" />~{formatSessionTime(conditioningTotalSeconds(workout.workout_exercises))}
+                        </Badge>
+                      )}
                     </span>
                     <Link
                       href={`/workouts/${workout.id}/start?forClient=${clientId}`}

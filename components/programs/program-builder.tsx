@@ -31,7 +31,7 @@ import {
   reorderWorkoutExercises,
 } from "@/lib/actions/programs";
 import { NewExerciseDialog } from "@/components/exercises/new-exercise-dialog";
-import { conditioningSummary } from "@/lib/workout-format";
+import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
 import { EditExerciseDialog } from "@/components/programs/edit-exercise-dialog";
 import { SESSION_TYPES } from "@/lib/session-types";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
@@ -43,7 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2, Pencil } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2, Pencil, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -536,6 +536,14 @@ function WorkoutCard({
             <CardTitle className="text-base truncate">{workout.name}</CardTitle>
             <SessionTypeBadge type={workout.session_type} className="shrink-0" />
             <Badge variant="secondary" className="text-xs shrink-0">{workout.workout_exercises.length} exercises</Badge>
+            {(() => {
+              const secs = conditioningTotalSeconds(workout.workout_exercises);
+              return secs > 0 ? (
+                <Badge variant="secondary" className="text-xs shrink-0 gap-1">
+                  <Clock className="h-3 w-3" />~{formatSessionTime(secs)}
+                </Badge>
+              ) : null;
+            })()}
           </div>
           <div className="flex items-center gap-1">
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleDuplicateWorkout} title="Duplicate">
