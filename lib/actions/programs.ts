@@ -376,3 +376,36 @@ export async function removeFromSuperset(params: {
   revalidatePath(`/programs/${programId}`);
   return {};
 }
+
+// Persists a new exercise order for a workout (order_index = array position),
+// then re-letters supersets so their labels stay ordered top-to-bottom.
+export async function reorderWorkoutExercises(params: {
+  workoutId: string;
+  orderedIds: string[];
+}): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const programId = await ownedProgramForWorkout(admin, params.workoutId, user.id);
+  if (!programId) return { error: "Not authorized" };
+
+  for (let i = 0; i < params.orderedIds.length; i++) {
+    const { error } = await admin
+      .from("workout_exercises")
+      .update({ order_index: i } as never)
+      .eq("id", params.orderedIds[i])
+      .eq("workout_id", params.workoutId); // guard: only rows in this workout
+    if (error) return { error: error.message };
+  }
+
+  const { data: rows } = await admin
+    .from("workout_exercises")
+    .select("id, order_index, superset_group")
+    .eq("workout_id", params.workoutId);
+  const exercises = (rows ?? []) as WeGroupRow[];
+  const err = await reletterSupersets(admin, exercises, (we) => we.superset_group?.toUpperCase() ?? null);
+  if (err) return { error: err };
+
+  revalidatePath(`/programs/${programId}`);
+  return {};
+}

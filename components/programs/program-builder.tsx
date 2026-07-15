@@ -1,7 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   addWorkout,
   updateWorkout,
@@ -11,6 +28,7 @@ import {
   deleteWorkoutExercise,
   createSuperset,
   removeFromSuperset,
+  reorderWorkoutExercises,
 } from "@/lib/actions/programs";
 import { createExercise } from "@/lib/actions/exercises";
 import { SESSION_TYPES } from "@/lib/session-types";
@@ -247,6 +265,83 @@ function AddExerciseDialog({
   );
 }
 
+function SortableExerciseRow({
+  we,
+  isSelected,
+  onToggleSelect,
+  onRemoveSuperset,
+  onDeleteExercise,
+}: {
+  we: WorkoutExercise;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
+  onRemoveSuperset: (id: string) => void;
+  onDeleteExercise: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: we.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      onClick={() => onToggleSelect(we.id)}
+      className={cn(
+        "flex items-center gap-1.5 rounded-lg px-2 py-2 cursor-pointer transition-colors",
+        isDragging && "opacity-80 shadow-lg",
+        isSelected ? "bg-primary/15 ring-1 ring-primary/40" : "bg-secondary/50 hover:bg-secondary/80"
+      )}
+    >
+      {/* Drag handle */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        className="shrink-0 cursor-grab touch-none text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing"
+        title="Drag to reorder"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
+      {/* Superset badge — click to remove */}
+      {we.superset_group ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRemoveSuperset(we.id); }}
+          className="text-xs font-bold text-primary w-4 shrink-0 hover:text-destructive transition-colors"
+          title="Remove from superset"
+        >
+          {we.superset_group}
+        </button>
+      ) : (
+        <span className="w-4 shrink-0" />
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{we.exercises?.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {we.sets} × {we.reps}
+          {we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}
+          {" · "}{we.rest_seconds}s rest
+        </p>
+      </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+        onClick={(e) => { e.stopPropagation(); onDeleteExercise(we.id); }}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 function WorkoutCard({
   workout,
   exercises,
@@ -260,6 +355,41 @@ function WorkoutCard({
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const sorted = [...workout.workout_exercises].sort((a, b) => a.order_index - b.order_index);
+
+  // Local order for optimistic drag reordering. Re-synced whenever the server
+  // data changes (after a refresh) via the serialized id order below.
+  const [items, setItems] = useState<WorkoutExercise[]>(sorted);
+  const sortedKey = sorted.map((we) => we.id).join(",");
+  useEffect(() => {
+    setItems(sorted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedKey]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex((we) => we.id === active.id);
+    const newIndex = items.findIndex((we) => we.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    setItems(reordered); // optimistic
+    const { error } = await reorderWorkoutExercises({
+      workoutId: workout.id,
+      orderedIds: reordered.map((we) => we.id),
+    });
+    if (error) {
+      toast.error(error);
+      setItems(sorted); // revert
+      return;
+    }
+    onUpdate();
+  }
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -355,52 +485,23 @@ function WorkoutCard({
               </SelectContent>
             </Select>
           </div>
-          {sorted.length > 0 ? (
-            <div className="space-y-1.5 mb-2">
-              {sorted.map((we) => {
-                const isSelected = selected.has(we.id);
-                return (
-                  <div
-                    key={we.id}
-                    onClick={() => toggleSelect(we.id)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-colors",
-                      isSelected ? "bg-primary/15 ring-1 ring-primary/40" : "bg-secondary/50 hover:bg-secondary/80"
-                    )}
-                  >
-                    {/* Superset badge — click to remove */}
-                    {we.superset_group ? (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleRemoveSuperset(we.id); }}
-                        className="text-xs font-bold text-primary w-5 shrink-0 hover:text-destructive transition-colors"
-                        title="Remove from superset"
-                      >
-                        {we.superset_group}
-                      </button>
-                    ) : (
-                      <span className="w-5 shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{we.exercises?.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {we.sets} × {we.reps}
-                        {we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}
-                        {" · "}{we.rest_seconds}s rest
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteExercise(we.id); }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
+          {items.length > 0 ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={items.map((we) => we.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-1.5 mb-2">
+                  {items.map((we) => (
+                    <SortableExerciseRow
+                      key={we.id}
+                      we={we}
+                      isSelected={selected.has(we.id)}
+                      onToggleSelect={toggleSelect}
+                      onRemoveSuperset={handleRemoveSuperset}
+                      onDeleteExercise={handleDeleteExercise}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           ) : (
             <p className="text-sm text-muted-foreground mb-2">No exercises yet.</p>
           )}
