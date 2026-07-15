@@ -27,7 +27,7 @@ import {
   addWorkoutExercise,
   deleteWorkoutExercise,
   createSuperset,
-  removeFromSuperset,
+  dissolveSuperset,
   reorderWorkoutExercises,
 } from "@/lib/actions/programs";
 import { createExercise } from "@/lib/actions/exercises";
@@ -269,13 +269,13 @@ function SortableExerciseRow({
   we,
   isSelected,
   onToggleSelect,
-  onRemoveSuperset,
+  onDissolveSuperset,
   onDeleteExercise,
 }: {
   we: WorkoutExercise;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
-  onRemoveSuperset: (id: string) => void;
+  onDissolveSuperset: (group: string) => void;
   onDeleteExercise: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: we.id });
@@ -309,13 +309,13 @@ function SortableExerciseRow({
         <GripVertical className="h-4 w-4" />
       </button>
 
-      {/* Superset badge — click to remove */}
+      {/* Superset badge — click to dissolve the whole superset */}
       {we.superset_group ? (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onRemoveSuperset(we.id); }}
+          onClick={(e) => { e.stopPropagation(); onDissolveSuperset(we.superset_group!); }}
           className="text-xs font-bold text-primary w-4 shrink-0 hover:text-destructive transition-colors"
-          title="Remove from superset"
+          title="Remove superset"
         >
           {we.superset_group}
         </button>
@@ -432,9 +432,10 @@ function WorkoutCard({
     onUpdate();
   }
 
-  async function handleRemoveSuperset(weId: string) {
-    const { error } = await removeFromSuperset({ workoutExerciseId: weId });
+  async function handleDissolveSuperset(group: string) {
+    const { error } = await dissolveSuperset({ workoutId: workout.id, group });
     if (error) { toast.error(error); return; }
+    toast.success(`Superset ${group.toUpperCase()} removed`);
     onUpdate();
   }
 
@@ -495,7 +496,7 @@ function WorkoutCard({
                       we={we}
                       isSelected={selected.has(we.id)}
                       onToggleSelect={toggleSelect}
-                      onRemoveSuperset={handleRemoveSuperset}
+                      onDissolveSuperset={handleDissolveSuperset}
                       onDeleteExercise={handleDeleteExercise}
                     />
                   ))}

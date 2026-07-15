@@ -344,34 +344,29 @@ export async function createSuperset(params: {
   return {};
 }
 
-// Removes one exercise from its superset, then re-letters the remaining groups
-// so labels stay contiguous and ordered.
-export async function removeFromSuperset(params: {
-  workoutExerciseId: string;
+// Dissolves an entire superset (all exercises sharing the given letter become
+// ungrouped), then re-letters any remaining supersets so labels stay ordered.
+export async function dissolveSuperset(params: {
+  workoutId: string;
+  group: string;
 }): Promise<ActionResult> {
   const user = await getSessionUser();
   if (!user) return { error: "Not authenticated" };
   const admin = createAdminClient();
-
-  const { data: weRow } = await admin
-    .from("workout_exercises")
-    .select("workout_id")
-    .eq("id", params.workoutExerciseId)
-    .single();
-  const workoutId = (weRow as { workout_id: string } | null)?.workout_id;
-  if (!workoutId) return { error: "Not found" };
-  const programId = await ownedProgramForWorkout(admin, workoutId, user.id);
+  const programId = await ownedProgramForWorkout(admin, params.workoutId, user.id);
   if (!programId) return { error: "Not authorized" };
 
   const { data: rows } = await admin
     .from("workout_exercises")
     .select("id, order_index, superset_group")
-    .eq("workout_id", workoutId);
+    .eq("workout_id", params.workoutId);
   const exercises = (rows ?? []) as WeGroupRow[];
 
-  const err = await reletterSupersets(admin, exercises, (we) =>
-    we.id === params.workoutExerciseId ? null : we.superset_group?.toUpperCase() ?? null
-  );
+  const target = params.group.toUpperCase();
+  const err = await reletterSupersets(admin, exercises, (we) => {
+    const g = we.superset_group?.toUpperCase() ?? null;
+    return g === target ? null : g;
+  });
   if (err) return { error: err };
   revalidatePath(`/programs/${programId}`);
   return {};
