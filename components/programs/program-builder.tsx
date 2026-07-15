@@ -9,7 +9,8 @@ import {
   duplicateWorkout,
   addWorkoutExercise,
   deleteWorkoutExercise,
-  setSupersetGroup,
+  createSuperset,
+  removeFromSuperset,
 } from "@/lib/actions/programs";
 import { createExercise } from "@/lib/actions/exercises";
 import { SESSION_TYPES } from "@/lib/session-types";
@@ -56,15 +57,6 @@ interface Workout {
   day_order: number;
   session_type: string | null;
   workout_exercises: WorkoutExercise[];
-}
-
-function nextSupersetLetter(exercises: WorkoutExercise[]): string {
-  const used = exercises
-    .filter((we) => we.superset_group)
-    .map((we) => we.superset_group!.toUpperCase());
-  if (used.length === 0) return "A";
-  const maxCode = Math.max(...used.map((g) => g.charCodeAt(0)));
-  return String.fromCharCode(maxCode + 1);
 }
 
 function AddExerciseDialog({
@@ -303,16 +295,15 @@ function WorkoutCard({
 
   async function handleMakeSuperset() {
     if (selected.size < 2) return;
-    const letter = nextSupersetLetter(workout.workout_exercises);
-    const { error } = await setSupersetGroup({ workoutExerciseIds: [...selected], group: letter });
+    const { error } = await createSuperset({ workoutId: workout.id, workoutExerciseIds: [...selected] });
     if (error) { toast.error(error); return; }
-    toast.success(`Superset ${letter} created`);
+    toast.success("Superset created");
     setSelected(new Set());
     onUpdate();
   }
 
   async function handleRemoveSuperset(weId: string) {
-    const { error } = await setSupersetGroup({ workoutExerciseIds: [weId], group: null });
+    const { error } = await removeFromSuperset({ workoutExerciseId: weId });
     if (error) { toast.error(error); return; }
     onUpdate();
   }

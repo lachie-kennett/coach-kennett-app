@@ -269,27 +269,110 @@ export async function deleteWorkoutExercise(workoutExerciseId: string): Promise<
   return {};
 }
 
-export async function setSupersetGroup(params: {
+type WeGroupRow = { id: string; order_index: number; superset_group: string | null };
+
+// Re-letters every superset in a workout A, B, C… by the top-to-bottom
+// position of its first exercise, using the given grouping intent. `tokenOf`
+// maps each exercise to an arbitrary group token (or null for no group);
+// exercises sharing a token form one superset. Groups with fewer than two
+// members are dropped. Only rows whose letter actually changes are written.
+async function reletterSupersets(
+  admin: ReturnType<typeof createAdminClient>,
+  exercises: WeGroupRow[],
+  tokenOf: (we: WeGroupRow) => string | null
+): Promise<string | null> {
+  const membersByToken = new Map<string, string[]>();
+  for (const we of exercises) {
+    const token = tokenOf(we);
+    if (!token) continue;
+    if (!membersByToken.has(token)) membersByToken.set(token, []);
+    membersByToken.get(token)!.push(we.id);
+  }
+
+  const orderOf = new Map(exercises.map((we) => [we.id, we.order_index]));
+  const groups = [...membersByToken.values()]
+    .filter((ids) => ids.length >= 2)
+    .map((ids) => ({ ids, top: Math.min(...ids.map((id) => orderOf.get(id) ?? 0)) }))
+    .sort((a, b) => a.top - b.top);
+
+  const finalGroup = new Map<string, string | null>();
+  for (const we of exercises) finalGroup.set(we.id, null);
+  groups.forEach((g, i) => {
+    const letter = String.fromCharCode(65 + i); // A, B, C…
+    for (const id of g.ids) finalGroup.set(id, letter);
+  });
+
+  for (const we of exercises) {
+    const next = finalGroup.get(we.id) ?? null;
+    if (next !== (we.superset_group ?? null)) {
+      const { error } = await admin
+        .from("workout_exercises")
+        .update({ superset_group: next } as never)
+        .eq("id", we.id);
+      if (error) return error.message;
+    }
+  }
+  return null;
+}
+
+// Groups the selected exercises into one superset, then re-letters the whole
+// workout top-to-bottom. Letters are derived from the live DB state, so rapid
+// successive calls never collide on the same letter.
+export async function createSuperset(params: {
+  workoutId: string;
   workoutExerciseIds: string[];
-  group: string | null;
+}): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const programId = await ownedProgramForWorkout(admin, params.workoutId, user.id);
+  if (!programId) return { error: "Not authorized" };
+  if (params.workoutExerciseIds.length < 2) return { error: "Select at least two exercises" };
+
+  const { data: rows } = await admin
+    .from("workout_exercises")
+    .select("id, order_index, superset_group")
+    .eq("workout_id", params.workoutId);
+  const exercises = (rows ?? []) as WeGroupRow[];
+
+  const selected = new Set(params.workoutExerciseIds);
+  const err = await reletterSupersets(admin, exercises, (we) =>
+    selected.has(we.id) ? "__new__" : we.superset_group?.toUpperCase() ?? null
+  );
+  if (err) return { error: err };
+  revalidatePath(`/programs/${programId}`);
+  return {};
+}
+
+// Removes one exercise from its superset, then re-letters the remaining groups
+// so labels stay contiguous and ordered.
+export async function removeFromSuperset(params: {
+  workoutExerciseId: string;
 }): Promise<ActionResult> {
   const user = await getSessionUser();
   if (!user) return { error: "Not authenticated" };
   const admin = createAdminClient();
 
-  // Verify ownership of every targeted row before mutating any.
-  let programId: string | null = null;
-  for (const id of params.workoutExerciseIds) {
-    const owned = await ownedWorkoutExercise(admin, id, user.id);
-    if (!owned) return { error: "Not authorized" };
-    programId = owned;
-  }
-
-  const { error } = await admin
+  const { data: weRow } = await admin
     .from("workout_exercises")
-    .update({ superset_group: params.group } as never)
-    .in("id", params.workoutExerciseIds);
-  if (error) return { error: error.message };
-  if (programId) revalidatePath(`/programs/${programId}`);
+    .select("workout_id")
+    .eq("id", params.workoutExerciseId)
+    .single();
+  const workoutId = (weRow as { workout_id: string } | null)?.workout_id;
+  if (!workoutId) return { error: "Not found" };
+  const programId = await ownedProgramForWorkout(admin, workoutId, user.id);
+  if (!programId) return { error: "Not authorized" };
+
+  const { data: rows } = await admin
+    .from("workout_exercises")
+    .select("id, order_index, superset_group")
+    .eq("workout_id", workoutId);
+  const exercises = (rows ?? []) as WeGroupRow[];
+
+  const err = await reletterSupersets(admin, exercises, (we) =>
+    we.id === params.workoutExerciseId ? null : we.superset_group?.toUpperCase() ?? null
+  );
+  if (err) return { error: err };
+  revalidatePath(`/programs/${programId}`);
   return {};
 }
