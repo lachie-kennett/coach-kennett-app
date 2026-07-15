@@ -86,13 +86,12 @@ function AddExercisePanel({
   exercises,
   onAdded,
 }: {
-  workouts: { id: string; name: string }[];
+  workouts: { id: string; name: string; session_type: string | null }[];
   activeWorkoutId: string | null;
   onActiveWorkoutChange: (id: string) => void;
   exercises: Exercise[];
   onAdded: () => void;
 }) {
-  const [blockType, setBlockType] = useState<"strength" | "conditioning">("strength");
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [exerciseId, setExerciseId] = useState("");
@@ -109,7 +108,11 @@ function AddExercisePanel({
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const isConditioning = blockType === "conditioning";
+  const activeWorkout = workouts.find((w) => w.id === activeWorkoutId);
+  // Conditioning + speed days use the conditioning layout; everything else
+  // (strength, agility, mobility, untyped…) uses the strength layout.
+  const isConditioning =
+    activeWorkout?.session_type === "conditioning" || activeWorkout?.session_type === "speed";
   // Exercises created inline this session, merged into the pool so a freshly
   // created exercise is immediately selectable before a refresh.
   const [createdExercises, setCreatedExercises] = useState<Exercise[]>([]);
@@ -144,7 +147,7 @@ function AddExercisePanel({
     const { error } = await addWorkoutExercise({
       workoutId: activeWorkoutId,
       exerciseId,
-      blockType,
+      blockType: isConditioning ? "conditioning" : "strength",
       sets: parseInt(sets) || 1,
       reps,
       weightKg: isConditioning ? null : weightKg ? parseFloat(weightKg) : null,
@@ -163,8 +166,6 @@ function AddExercisePanel({
     searchRef.current?.focus();
   }
 
-  const activeWorkout = workouts.find((w) => w.id === activeWorkoutId);
-
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -175,29 +176,14 @@ function AddExercisePanel({
           <p className="text-sm text-muted-foreground">Add a workout day below first, then add exercises here.</p>
         ) : (
           <form onSubmit={handleAdd} className="space-y-4">
-            {/* Block type toggle */}
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1">
-              {(["strength", "conditioning"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setBlockType(t)}
-                  className={cn(
-                    "rounded-md py-1.5 text-sm font-medium capitalize transition-colors",
-                    blockType === t ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
             {/* Target day */}
             <div className="space-y-2">
               <Label>Day</Label>
               <Select value={activeWorkoutId ?? ""} onValueChange={(v) => v && onActiveWorkoutChange(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a day" />
+                  <SelectValue placeholder="Choose a day">
+                    {(value: string) => workouts.find((w) => w.id === value)?.name ?? "Choose a day"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {workouts.map((w) => (
@@ -205,6 +191,11 @@ function AddExercisePanel({
                   ))}
                 </SelectContent>
               </Select>
+              {isConditioning && (
+                <p className="text-xs text-primary font-medium">
+                  Conditioning session — logging work/rest & intensity
+                </p>
+              )}
             </div>
 
             {/* Exercise / method search */}
@@ -228,7 +219,7 @@ function AddExercisePanel({
                 />
               </div>
               {dropdownOpen && search && (
-                <div className="max-h-44 overflow-y-auto rounded-md border bg-popover">
+                <div className="max-h-64 overflow-y-auto rounded-md border bg-popover">
                   {filtered.map((ex) => (
                     <button
                       key={ex.id}
@@ -704,7 +695,7 @@ export function ProgramBuilder({
   const typedSessions = sessionTypes.filter(Boolean).length;
 
   return (
-    <div className="lg:grid lg:grid-cols-[1fr_340px] lg:gap-4 lg:items-start">
+    <div className="lg:grid lg:grid-cols-[1fr_minmax(400px,460px)] lg:gap-5 lg:items-start">
       <div className="space-y-4 min-w-0">
       {typedSessions > 0 && (
         <Card>
@@ -791,7 +782,7 @@ export function ProgramBuilder({
 
       <div ref={panelRef} className="mt-4 lg:mt-0 lg:sticky lg:top-4">
         <AddExercisePanel
-          workouts={initialWorkouts.map((w) => ({ id: w.id, name: w.name }))}
+          workouts={initialWorkouts.map((w) => ({ id: w.id, name: w.name, session_type: w.session_type }))}
           activeWorkoutId={activeWorkoutId}
           onActiveWorkoutChange={setActiveWorkoutId}
           exercises={exercises}
