@@ -30,7 +30,7 @@ import {
   dissolveSuperset,
   reorderWorkoutExercises,
 } from "@/lib/actions/programs";
-import { createExercise } from "@/lib/actions/exercises";
+import { NewExerciseDialog } from "@/components/exercises/new-exercise-dialog";
 import { SESSION_TYPES } from "@/lib/session-types";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { SessionTypeCounts } from "@/components/programs/session-type-counts";
@@ -100,7 +100,7 @@ function AddExercisePanel({
   // Exercises created inline this session, merged into the pool so a freshly
   // created exercise is immediately selectable before a refresh.
   const [createdExercises, setCreatedExercises] = useState<Exercise[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const pool = [...createdExercises, ...exercises];
@@ -112,26 +112,11 @@ function AddExercisePanel({
     (ex) => ex.name.toLowerCase() === trimmedSearch.toLowerCase()
   );
 
-  async function handleQuickCreate() {
-    if (!trimmedSearch || creating) return;
-    setCreating(true);
-    const result = await createExercise({
-      name: trimmedSearch,
-      description: null,
-      youtube_url: null,
-      muscle_groups: [],
-    });
-    setCreating(false);
-    if (result.error || !result.id) {
-      toast.error(result.error ?? "Failed to create exercise");
-      return;
-    }
-    const newEx: Exercise = { id: result.id, name: trimmedSearch, youtube_url: null, muscle_groups: [] };
-    setCreatedExercises((prev) => [newEx, ...prev]);
-    setExerciseId(newEx.id);
-    setSearch(newEx.name);
+  function handleCreated(ex: Exercise) {
+    setCreatedExercises((prev) => [ex, ...prev]);
+    setExerciseId(ex.id);
+    setSearch(ex.name);
     setDropdownOpen(false);
-    toast.success(`"${newEx.name}" added to your library`);
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -228,12 +213,11 @@ function AddExercisePanel({
                   {trimmedSearch && !hasExactMatch && (
                     <button
                       type="button"
-                      disabled={creating}
-                      onMouseDown={(e) => { e.preventDefault(); handleQuickCreate(); }}
-                      className="flex w-full items-center gap-2 border-t px-3 py-2 text-left text-sm text-primary hover:bg-secondary transition-colors disabled:opacity-60"
+                      onMouseDown={(e) => { e.preventDefault(); setShowCreateDialog(true); setDropdownOpen(false); }}
+                      className="flex w-full items-center gap-2 border-t px-3 py-2 text-left text-sm text-primary hover:bg-secondary transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5 shrink-0" />
-                      {creating ? "Creating…" : <>Create &ldquo;{trimmedSearch}&rdquo;</>}
+                      Create &ldquo;{trimmedSearch}&rdquo;…
                     </button>
                   )}
                   {filtered.length === 0 && !trimmedSearch && (
@@ -276,6 +260,13 @@ function AddExercisePanel({
           </form>
         )}
       </CardContent>
+
+      <NewExerciseDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        initialName={trimmedSearch}
+        onCreated={handleCreated}
+      />
     </Card>
   );
 }

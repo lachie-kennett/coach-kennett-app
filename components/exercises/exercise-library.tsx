@@ -12,19 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Search, Plus, Play, Pencil, Trash2, Dumbbell, ExternalLink } from "lucide-react";
+import { Search, Plus, Play, Pencil, Trash2, Dumbbell, ExternalLink, VideoOff } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { Database, MuscleGroup } from "@/lib/supabase/types";
+import { FOCUS_AREAS } from "@/lib/focus-areas";
+import type { Database } from "@/lib/supabase/types";
 
 type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
-
-const FOCUS_OPTIONS: MuscleGroup[] = [
-  "lower push", "lower pull", "upper push", "upper pull",
-  "arms", "mobility", "core", "power", "plyo",
-  "resilience", "conditioning", "speed", "agility", "other",
-];
 
 function getYouTubeId(url: string): string | null {
   const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
@@ -42,10 +37,10 @@ function ExerciseFormDialog({
   const [name, setName] = useState(exercise?.name ?? "");
   const [description, setDescription] = useState(exercise?.description ?? "");
   const [youtubeUrl, setYoutubeUrl] = useState(exercise?.youtube_url ?? "");
-  const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>((exercise?.muscle_groups ?? []) as MuscleGroup[]);
+  const [muscleGroups, setMuscleGroups] = useState<string[]>(exercise?.muscle_groups ?? []);
   const [loading, setLoading] = useState(false);
 
-  function toggleMuscle(m: MuscleGroup) {
+  function toggleMuscle(m: string) {
     setMuscleGroups((prev) =>
       prev.includes(m) ? prev.filter((g) => g !== m) : [...prev, m]
     );
@@ -108,7 +103,7 @@ function ExerciseFormDialog({
       <div className="space-y-2">
         <Label>Focus</Label>
         <div className="flex flex-wrap gap-2">
-          {FOCUS_OPTIONS.map((m) => (
+          {FOCUS_AREAS.map((m) => (
             <button
               key={m}
               type="button"
@@ -172,13 +167,19 @@ export function ExerciseLibrary({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [onlyNoVideo, setOnlyNoVideo] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editExercise, setEditExercise] = useState<Exercise | null>(null);
 
-  const filtered = exercises.filter((e) =>
-    e.name.toLowerCase().includes(search.toLowerCase()) ||
-    e.muscle_groups.some((m) => m.includes(search.toLowerCase()))
-  );
+  const noVideoCount = exercises.filter((e) => !e.youtube_url).length;
+
+  const filtered = exercises.filter((e) => {
+    const matchesSearch =
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.muscle_groups.some((m) => m.includes(search.toLowerCase()));
+    const matchesVideo = !onlyNoVideo || !e.youtube_url;
+    return matchesSearch && matchesVideo;
+  });
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this exercise?")) return;
@@ -208,14 +209,34 @@ export function ExerciseLibrary({
         )}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search exercises or muscle groups…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search exercises or focus…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button
+          type="button"
+          variant={onlyNoVideo ? "default" : "outline"}
+          onClick={() => setOnlyNoVideo((v) => !v)}
+          className="shrink-0 gap-1.5"
+          title="Show only exercises without a video"
+        >
+          <VideoOff className="h-4 w-4" />
+          No video
+          {noVideoCount > 0 && (
+            <span className={cn(
+              "ml-0.5 rounded-full px-1.5 text-xs tabular-nums",
+              onlyNoVideo ? "bg-primary-foreground/20" : "bg-muted"
+            )}>
+              {noVideoCount}
+            </span>
+          )}
+        </Button>
       </div>
 
       {filtered.length > 0 ? (
@@ -272,7 +293,7 @@ export function ExerciseLibrary({
           <CardContent className="py-12 text-center">
             <Dumbbell className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">
-              {search ? "No exercises match your search." : "No exercises yet. Add your first one."}
+              {search || onlyNoVideo ? "No exercises match your filters." : "No exercises yet. Add your first one."}
             </p>
           </CardContent>
         </Card>
