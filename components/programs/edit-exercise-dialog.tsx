@@ -61,7 +61,7 @@ export function EditExerciseDialog({
       setSets(String(we.sets));
       setReps(we.reps);
       setWeightKg(we.weight_kg?.toString() ?? "");
-      setRestSeconds(String(we.rest_seconds));
+      setRestSeconds(we.rest_seconds ? String(we.rest_seconds) : "");
       setWorkMin(mins(we.work_seconds));
       setWorkSec(secs(we.work_seconds));
       setRestMin(mins(we.rest_seconds));
@@ -147,7 +147,7 @@ export function EditExerciseDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="ee-rest">Rest (sec)</Label>
-                <Input id="ee-rest" type="number" min="0" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} />
+                <Input id="ee-rest" type="number" min="0" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} placeholder="Optional" />
               </div>
             </div>
           )}

@@ -99,7 +99,7 @@ function AddExercisePanel({
   const [sets, setSets] = useState("3");
   const [reps, setReps] = useState("");
   const [weightKg, setWeightKg] = useState("");
-  const [restSeconds, setRestSeconds] = useState("90");
+  const [restSeconds, setRestSeconds] = useState("");
   // Conditioning-only fields (work/rest as min:sec, plus intensity)
   const [workMin, setWorkMin] = useState("");
   const [workSec, setWorkSec] = useState("");
@@ -152,7 +152,7 @@ function AddExercisePanel({
       sets: parseInt(sets) || 1,
       reps,
       weightKg: isConditioning ? null : weightKg ? parseFloat(weightKg) : null,
-      restSeconds: isConditioning ? toSeconds(restMin, restSec) : parseInt(restSeconds),
+      restSeconds: isConditioning ? toSeconds(restMin, restSec) : parseInt(restSeconds) || 0,
       workSeconds: isConditioning ? toSeconds(workMin, workSec) || null : null,
       intensity: isConditioning ? intensity.trim() || null : null,
       notes: notes || null,
@@ -300,7 +300,7 @@ function AddExercisePanel({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="we-rest">Rest (sec)</Label>
-                <Input id="we-rest" type="number" min="0" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} />
+                <Input id="we-rest" type="number" min="0" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} placeholder="Optional" />
               </div>
             </div>
             )}
@@ -396,7 +396,7 @@ function SortableExerciseRow({
         <p className="text-xs text-muted-foreground truncate">
           {we.block_type === "conditioning"
             ? conditioningSummary(we)
-            : <>{we.sets} × {we.reps}{we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}{" · "}{we.rest_seconds}s rest</>}
+            : <>{we.sets} × {we.reps}{we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}{we.rest_seconds > 0 ? ` · ${we.rest_seconds}s rest` : ""}</>}
         </p>
       </div>
       <Button

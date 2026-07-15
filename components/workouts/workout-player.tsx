@@ -329,8 +329,8 @@ export function WorkoutPlayer({
       return { ...prev, [weOrAhId]: copy };
     });
 
-    // Offer a rest unless this completes the very last set of the whole workout.
-    if (totalCompleted + 1 < totalSets) {
+    // Offer a rest only when one is prescribed, and not on the final set.
+    if (restSecs > 0 && totalCompleted + 1 < totalSets) {
       setRestSeconds(restSecs);
       setShowRestButton(true);
     }
@@ -489,7 +489,7 @@ export function WorkoutPlayer({
                       <p className="text-sm text-muted-foreground mt-1">
                         {entries.length || item.targetSets} sets × {item.reps}
                         {item.weightKg ? ` @ ${item.weightKg}kg` : ""}
-                        {" · "}{item.restSeconds}s rest
+                        {item.restSeconds > 0 ? ` · ${item.restSeconds}s rest` : ""}
                       </p>
                     )}
                     {item.notes && (

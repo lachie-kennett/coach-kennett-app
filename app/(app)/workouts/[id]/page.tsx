@@ -89,7 +89,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                     <p className="text-sm text-muted-foreground mt-0.5">
                       {we.block_type === "conditioning"
                         ? conditioningSummary(we)
-                        : <>{we.sets} sets × {we.reps}{we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}{" · "}{we.rest_seconds}s rest</>}
+                        : <>{we.sets} sets × {we.reps}{we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}{we.rest_seconds > 0 ? ` · ${we.rest_seconds}s rest` : ""}</>}
                     </p>
                     {we.notes && (
                       <p className="text-xs text-muted-foreground mt-1 italic">{we.notes}</p>
