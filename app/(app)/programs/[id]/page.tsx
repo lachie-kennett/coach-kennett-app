@@ -8,8 +8,15 @@ import { ProgramBuilder } from "@/components/programs/program-builder";
 import { cn } from "@/lib/utils";
 import type { Profile, Program } from "@/lib/types";
 
-export default async function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProgramDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ clientId?: string }>;
+}) {
   const { id } = await params;
+  const { clientId } = await searchParams;
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
@@ -17,6 +24,23 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
   const profile = profileData as Pick<Profile, "role"> | null;
   if (profile?.role !== "coach") redirect("/home");
+
+  // When editing in the context of a client, back returns to that client's
+  // profile; otherwise to the programs list.
+  let backHref = "/programs";
+  let backLabel = "";
+  if (clientId) {
+    const { data: clientRow } = await admin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", clientId)
+      .eq("coach_id", user.id)
+      .single();
+    if (clientRow) {
+      backHref = `/clients/${clientId}`;
+      backLabel = (clientRow as { full_name: string | null }).full_name ?? "Client";
+    }
+  }
 
   const { data: programData } = await admin
     .from("programs")
@@ -49,8 +73,9 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4">
       <div className="flex items-center gap-3">
-        <Link href="/programs" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+        <Link href={backHref} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), backLabel && "gap-1.5")}>
           <ArrowLeft className="h-4 w-4" />
+          {backLabel}
         </Link>
         <div>
           <h1 className="text-xl font-bold">{program.name}</h1>

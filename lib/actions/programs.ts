@@ -66,6 +66,32 @@ export async function assignProgram(params: {
   revalidatePath(`/clients/${params.clientId}`);
 }
 
+// Updates the start/end dates (i.e. the length) of a client's program assignment.
+export async function updateAssignmentDates(params: {
+  clientId: string;
+  programId: string;
+  startDate: string;
+  endDate: string | null;
+}): Promise<{ error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  if (!(await ownsProgram(admin, params.programId, user.id))) return { error: "Not authorized" };
+  if (params.endDate && params.endDate < params.startDate) {
+    return { error: "End date must be after the start date" };
+  }
+
+  const { error } = await admin
+    .from("client_programs")
+    .update({ start_date: params.startDate, end_date: params.endDate } as never)
+    .eq("client_id", params.clientId)
+    .eq("program_id", params.programId);
+  if (error) return { error: error.message };
+  revalidatePath(`/clients/${params.clientId}/programs/${params.programId}`);
+  revalidatePath(`/clients/${params.clientId}`);
+  return {};
+}
+
 // ── Program builder mutations ──────────────────────────────────────────────
 // These verify the current coach owns the target program, then use the admin
 // client to bypass RLS (same pattern as exercises). Returns { error } strings

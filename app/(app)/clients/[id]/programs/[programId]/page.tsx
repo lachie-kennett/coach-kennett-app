@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, Dumbbell, Pencil, Play } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
+import { ProgramLengthEditor } from "@/components/programs/program-length-editor";
 import { cn } from "@/lib/utils";
 
 type WorkoutExerciseRow = {
@@ -57,7 +58,7 @@ export default async function ClientProgramPage({
         .single(),
       admin
         .from("client_programs")
-        .select("id, start_date, is_active, programs(id, name, description)")
+        .select("id, start_date, end_date, is_active, programs(id, name, description)")
         .eq("client_id", clientId)
         .eq("program_id", programId)
         .single(),
@@ -79,6 +80,7 @@ export default async function ClientProgramPage({
   type AssignmentData = {
     id: string;
     start_date: string;
+    end_date: string | null;
     is_active: boolean;
     programs: { id: string; name: string; description: string | null } | null;
   };
@@ -109,13 +111,20 @@ export default async function ClientProgramPage({
             {assignment.is_active ? "Active" : "Past"}
           </Badge>
           <Link
-            href={`/programs/${programId}`}
+            href={`/programs/${programId}?clientId=${clientId}`}
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
           >
             <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
           </Link>
         </div>
       </div>
+
+      <ProgramLengthEditor
+        clientId={clientId}
+        programId={programId}
+        startDate={assignment.start_date}
+        endDate={assignment.end_date}
+      />
 
       {workouts.length === 0 ? (
         <Card>

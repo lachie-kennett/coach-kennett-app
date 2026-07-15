@@ -30,7 +30,7 @@ export function NewProgramForm({
         clientId,
       });
       toast.success("Program created");
-      router.push(`/programs/${id}`);
+      router.push(clientId ? `/programs/${id}?clientId=${clientId}` : `/programs/${id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create program");
       setLoading(false);
