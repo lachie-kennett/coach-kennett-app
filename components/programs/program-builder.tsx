@@ -159,9 +159,9 @@ function AddExercisePanel({
     });
 
     if (error) { toast.error(error); setLoading(false); return; }
-    // Keep the panel open and hold the prescription so the coach can keep
-    // adding. Only clear the exercise + notes, then refocus the search.
-    setSearch(""); setExerciseId(""); setNotes(""); setDropdownOpen(false);
+    // Keep the panel open and hold sets/rest so the coach can keep adding, but
+    // clear the exercise, reps and notes (which vary per exercise), then refocus.
+    setSearch(""); setExerciseId(""); setReps(""); setNotes(""); setDropdownOpen(false);
     onAdded();
     setLoading(false);
     searchRef.current?.focus();
