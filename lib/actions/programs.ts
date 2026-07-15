@@ -241,7 +241,6 @@ export async function addWorkoutExercise(params: {
   reps: string;
   weightKg: number | null;
   restSeconds: number;
-  orderIndex: number;
   notes: string | null;
 }): Promise<ActionResult> {
   const user = await getSessionUser();
@@ -250,6 +249,17 @@ export async function addWorkoutExercise(params: {
   const programId = await ownedProgramForWorkout(admin, params.workoutId, user.id);
   if (!programId) return { error: "Not authorized" };
 
+  // Compute the next order index from the DB so rapid successive adds (from the
+  // persistent side panel) can't collide on the same position.
+  const { data: last } = await admin
+    .from("workout_exercises")
+    .select("order_index")
+    .eq("workout_id", params.workoutId)
+    .order("order_index", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const orderIndex = ((last as { order_index: number } | null)?.order_index ?? -1) + 1;
+
   const { error } = await admin.from("workout_exercises").insert({
     workout_id: params.workoutId,
     exercise_id: params.exerciseId,
@@ -257,7 +267,7 @@ export async function addWorkoutExercise(params: {
     reps: params.reps,
     weight_kg: params.weightKg,
     rest_seconds: params.restSeconds,
-    order_index: params.orderIndex,
+    order_index: orderIndex,
     superset_group: null,
     notes: params.notes,
   } as never);

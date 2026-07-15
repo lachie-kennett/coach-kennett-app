@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -38,12 +38,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2 } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -77,18 +75,19 @@ interface Workout {
   workout_exercises: WorkoutExercise[];
 }
 
-function AddExerciseDialog({
-  workoutId,
+function AddExercisePanel({
+  workouts,
+  activeWorkoutId,
+  onActiveWorkoutChange,
   exercises,
-  currentCount,
   onAdded,
 }: {
-  workoutId: string;
+  workouts: { id: string; name: string }[];
+  activeWorkoutId: string | null;
+  onActiveWorkoutChange: (id: string) => void;
   exercises: Exercise[];
-  currentCount: number;
   onAdded: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [exerciseId, setExerciseId] = useState("");
@@ -98,16 +97,16 @@ function AddExerciseDialog({
   const [restSeconds, setRestSeconds] = useState("90");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
-  // Exercises created inline during this dialog session, merged into the pool
-  // so a freshly-created exercise is immediately selectable before a refresh.
+  // Exercises created inline this session, merged into the pool so a freshly
+  // created exercise is immediately selectable before a refresh.
   const [createdExercises, setCreatedExercises] = useState<Exercise[]>([]);
   const [creating, setCreating] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const pool = [...createdExercises, ...exercises];
   const filtered = pool.filter((ex) =>
     ex.name.toLowerCase().includes(search.toLowerCase())
   );
-  const selectedExercise = pool.find((ex) => ex.id === exerciseId);
   const trimmedSearch = search.trim();
   const hasExactMatch = pool.some(
     (ex) => ex.name.toLowerCase() === trimmedSearch.toLowerCase()
@@ -137,131 +136,147 @@ function AddExerciseDialog({
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!exerciseId) return;
+    if (!exerciseId || !activeWorkoutId) return;
     setLoading(true);
 
     const { error } = await addWorkoutExercise({
-      workoutId,
+      workoutId: activeWorkoutId,
       exerciseId,
       sets: parseInt(sets),
       reps,
       weightKg: weightKg ? parseFloat(weightKg) : null,
       restSeconds: parseInt(restSeconds),
-      orderIndex: currentCount,
       notes: notes || null,
     });
 
     if (error) { toast.error(error); setLoading(false); return; }
-    toast.success("Exercise added");
-    setOpen(false);
-    setSearch(""); setDropdownOpen(false); setExerciseId(""); setSets("3"); setReps("");
-    setWeightKg(""); setRestSeconds("90"); setNotes(""); setCreatedExercises([]);
+    // Keep the panel open and hold sets/reps/rest so the coach can keep adding.
+    // Only clear the exercise + notes, then refocus the search.
+    setSearch(""); setExerciseId(""); setNotes(""); setDropdownOpen(false);
     onAdded();
     setLoading(false);
+    searchRef.current?.focus();
   }
 
+  const activeWorkout = workouts.find((w) => w.id === activeWorkoutId);
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSearch(""); setDropdownOpen(false); setExerciseId(""); setCreatedExercises([]); } }}>
-      <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full mt-2")}>
-        <Plus className="mr-2 h-4 w-4" /> Add exercise
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Add exercise</DialogTitle></DialogHeader>
-        <form onSubmit={handleAdd} className="space-y-4 mt-2">
-
-          {/* Exercise search */}
-          <div className="space-y-2">
-            <Label>Exercise</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search exercises…"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setExerciseId("");
-                  setDropdownOpen(true);
-                }}
-                onFocus={() => { if (search) setDropdownOpen(true); }}
-                onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
-                className="pl-9"
-                autoComplete="off"
-              />
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Add exercise</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {workouts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Add a workout day below first, then add exercises here.</p>
+        ) : (
+          <form onSubmit={handleAdd} className="space-y-4">
+            {/* Target day */}
+            <div className="space-y-2">
+              <Label>Day</Label>
+              <Select value={activeWorkoutId ?? ""} onValueChange={(v) => v && onActiveWorkoutChange(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a day" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workouts.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {dropdownOpen && search && (
-              <div className="max-h-44 overflow-y-auto rounded-md border bg-popover">
-                {filtered.map((ex) => (
-                  <button
-                    key={ex.id}
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault(); // prevent input blur before click registers
-                      setExerciseId(ex.id);
-                      setSearch(ex.name);
-                      setDropdownOpen(false);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors",
-                      exerciseId === ex.id && "bg-secondary font-medium"
-                    )}
-                  >
-                    {ex.name}
-                  </button>
-                ))}
-                {trimmedSearch && !hasExactMatch && (
-                  <button
-                    type="button"
-                    disabled={creating}
-                    onMouseDown={(e) => { e.preventDefault(); handleQuickCreate(); }}
-                    className="flex w-full items-center gap-2 border-t px-3 py-2 text-left text-sm text-primary hover:bg-secondary transition-colors disabled:opacity-60"
-                  >
-                    <Plus className="h-3.5 w-3.5 shrink-0" />
-                    {creating ? "Creating…" : <>Create &ldquo;{trimmedSearch}&rdquo;</>}
-                  </button>
-                )}
-                {filtered.length === 0 && !trimmedSearch && (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">No exercises found</p>
-                )}
+
+            {/* Exercise search */}
+            <div className="space-y-2">
+              <Label>Exercise</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  ref={searchRef}
+                  placeholder="Search or create…"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setExerciseId("");
+                    setDropdownOpen(true);
+                  }}
+                  onFocus={() => { if (search) setDropdownOpen(true); }}
+                  onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+                  className="pl-9"
+                  autoComplete="off"
+                />
               </div>
-            )}
-            {selectedExercise && (
-              <p className="text-xs text-muted-foreground">Selected: <span className="font-medium text-foreground">{selectedExercise.name}</span></p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="we-sets">Sets</Label>
-              <Input id="we-sets" type="number" min="1" value={sets} onChange={(e) => setSets(e.target.value)} required />
+              {dropdownOpen && search && (
+                <div className="max-h-44 overflow-y-auto rounded-md border bg-popover">
+                  {filtered.map((ex) => (
+                    <button
+                      key={ex.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // prevent input blur before click registers
+                        setExerciseId(ex.id);
+                        setSearch(ex.name);
+                        setDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors",
+                        exerciseId === ex.id && "bg-secondary font-medium"
+                      )}
+                    >
+                      {ex.name}
+                    </button>
+                  ))}
+                  {trimmedSearch && !hasExactMatch && (
+                    <button
+                      type="button"
+                      disabled={creating}
+                      onMouseDown={(e) => { e.preventDefault(); handleQuickCreate(); }}
+                      className="flex w-full items-center gap-2 border-t px-3 py-2 text-left text-sm text-primary hover:bg-secondary transition-colors disabled:opacity-60"
+                    >
+                      <Plus className="h-3.5 w-3.5 shrink-0" />
+                      {creating ? "Creating…" : <>Create &ldquo;{trimmedSearch}&rdquo;</>}
+                    </button>
+                  )}
+                  {filtered.length === 0 && !trimmedSearch && (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">No exercises found</p>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="we-reps">Reps</Label>
-              <Input id="we-reps" value={reps} onChange={(e) => setReps(e.target.value)} required placeholder="10 or 8-12" />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="we-weight">Target weight (kg)</Label>
-              <Input id="we-weight" type="number" step="0.5" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="Optional" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="we-sets">Sets</Label>
+                <Input id="we-sets" type="number" min="1" value={sets} onChange={(e) => setSets(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="we-reps">Reps</Label>
+                <Input id="we-reps" value={reps} onChange={(e) => setReps(e.target.value)} required placeholder="10 or 8-12" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="we-rest">Rest (sec)</Label>
-              <Input id="we-rest" type="number" min="0" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="we-weight">Weight (kg)</Label>
+                <Input id="we-weight" type="number" step="0.5" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="Optional" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="we-rest">Rest (sec)</Label>
+                <Input id="we-rest" type="number" min="0" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="we-notes">Notes (optional)</Label>
-            <Input id="we-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Coaching cues" />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="we-notes">Notes (optional)</Label>
+              <Input id="we-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Coaching cues" />
+            </div>
 
-          <Button type="submit" className="w-full" disabled={loading || !exerciseId}>
-            {loading ? "Adding…" : "Add exercise"}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <Button type="submit" className="w-full" disabled={loading || !exerciseId || !activeWorkoutId}>
+              {loading ? "Adding…" : activeWorkout ? `Add to ${activeWorkout.name}` : "Add exercise"}
+            </Button>
+          </form>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -344,11 +359,13 @@ function SortableExerciseRow({
 
 function WorkoutCard({
   workout,
-  exercises,
+  isActive,
+  onActivate,
   onUpdate,
 }: {
   workout: Workout;
-  exercises: Exercise[];
+  isActive: boolean;
+  onActivate: (workoutId: string) => void;
   onUpdate: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -447,7 +464,7 @@ function WorkoutCard({
   }
 
   return (
-    <Card>
+    <Card className={cn(isActive && "ring-1 ring-primary/50")}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
@@ -519,14 +536,15 @@ function WorkoutCard({
                 Superset ({selected.size})
               </Button>
             )}
-            <div className={cn(selected.size >= 2 ? "flex-1" : "w-full")}>
-              <AddExerciseDialog
-                workoutId={workout.id}
-                exercises={exercises}
-                currentCount={workout.workout_exercises.length}
-                onAdded={onUpdate}
-              />
-            </div>
+            <Button
+              size="sm"
+              variant={isActive ? "default" : "outline"}
+              className={cn(selected.size >= 2 ? "flex-1" : "w-full")}
+              onClick={() => onActivate(workout.id)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {isActive ? "Adding here →" : "Add exercise"}
+            </Button>
           </div>
         </CardContent>
       )}
@@ -547,6 +565,30 @@ export function ProgramBuilder({
   const [newWorkoutName, setNewWorkoutName] = useState("");
   const [newWorkoutType, setNewWorkoutType] = useState<string>("none");
   const [addingWorkout, setAddingWorkout] = useState(false);
+
+  // The workout day the side "Add exercise" panel currently targets.
+  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(
+    initialWorkouts[0]?.id ?? null
+  );
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active day valid as workouts are added/removed.
+  useEffect(() => {
+    if (initialWorkouts.length === 0) {
+      setActiveWorkoutId(null);
+    } else if (!initialWorkouts.some((w) => w.id === activeWorkoutId)) {
+      setActiveWorkoutId(initialWorkouts[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialWorkouts.map((w) => w.id).join(",")]);
+
+  function activateWorkout(id: string) {
+    setActiveWorkoutId(id);
+    // On narrow screens the panel sits below the days — scroll it into view.
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
 
   function refresh() {
     router.refresh();
@@ -602,7 +644,8 @@ export function ProgramBuilder({
   const typedSessions = sessionTypes.filter(Boolean).length;
 
   return (
-    <div className="space-y-4">
+    <div className="lg:grid lg:grid-cols-[1fr_340px] lg:gap-4 lg:items-start">
+      <div className="space-y-4 min-w-0">
       {typedSessions > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -649,7 +692,13 @@ export function ProgramBuilder({
 
       <div className="space-y-3">
         {initialWorkouts.map((w) => (
-          <WorkoutCard key={w.id} workout={w} exercises={exercises} onUpdate={refresh} />
+          <WorkoutCard
+            key={w.id}
+            workout={w}
+            isActive={w.id === activeWorkoutId}
+            onActivate={activateWorkout}
+            onUpdate={refresh}
+          />
         ))}
       </div>
 
@@ -678,12 +727,17 @@ export function ProgramBuilder({
         </Button>
       </form>
 
-      {exercises.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center">
-          You need to add exercises to your library first.{" "}
-          <a href="/exercises" className="text-primary hover:underline">Go to exercises</a>
-        </p>
-      )}
+      </div>
+
+      <div ref={panelRef} className="mt-4 lg:mt-0 lg:sticky lg:top-4">
+        <AddExercisePanel
+          workouts={initialWorkouts.map((w) => ({ id: w.id, name: w.name }))}
+          activeWorkoutId={activeWorkoutId}
+          onActiveWorkoutChange={setActiveWorkoutId}
+          exercises={exercises}
+          onAdded={refresh}
+        />
+      </div>
     </div>
   );
 }
