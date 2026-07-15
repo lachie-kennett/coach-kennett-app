@@ -6,16 +6,25 @@ import { updateAssignmentDates } from "@/lib/actions/programs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 
-function weeksBetween(start: string, end: string | null): string | null {
-  if (!end) return null;
-  const days = (new Date(end).getTime() - new Date(start).getTime()) / 86400000;
-  if (days <= 0) return null;
-  const weeks = days / 7;
-  // Show whole weeks where clean, otherwise one decimal.
-  const rounded = Math.round(weeks * 10) / 10;
-  return Number.isInteger(rounded) ? `${rounded} week${rounded === 1 ? "" : "s"}` : `${rounded} weeks`;
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+// Adds days to a YYYY-MM-DD string using local date parts (no timezone drift).
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+// Whole weeks between two dates, or "" if there is no end date.
+function weeksFrom(start: string, end: string | null): string {
+  if (!end) return "";
+  const days = (Date.parse(end) - Date.parse(start)) / 86400000;
+  if (days <= 0) return "";
+  return String(Math.round(days / 7));
 }
 
 export function ProgramLengthEditor({
@@ -31,11 +40,17 @@ export function ProgramLengthEditor({
 }) {
   const router = useRouter();
   const [startDate, setStartDate] = useState(initialStart);
-  const [endDate, setEndDate] = useState(initialEnd ?? "");
+  const [weeks, setWeeks] = useState(weeksFrom(initialStart, initialEnd));
   const [saving, setSaving] = useState(false);
 
-  const changed = startDate !== initialStart || endDate !== (initialEnd ?? "");
-  const length = weeksBetween(startDate, endDate || null);
+  const initialWeeks = weeksFrom(initialStart, initialEnd);
+  const changed = startDate !== initialStart || weeks !== initialWeeks;
+
+  const weeksNum = parseInt(weeks, 10);
+  const endDate = weeks && weeksNum > 0 ? addDays(startDate, weeksNum * 7) : null;
+  const endLabel = endDate
+    ? new Date(endDate).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })
+    : null;
 
   async function handleSave() {
     setSaving(true);
@@ -43,7 +58,7 @@ export function ProgramLengthEditor({
       clientId,
       programId,
       startDate,
-      endDate: endDate || null,
+      endDate,
     });
     setSaving(false);
     if (result.error) {
@@ -56,31 +71,28 @@ export function ProgramLengthEditor({
 
   return (
     <div className="rounded-lg border border-border p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Program length</p>
-        {length && <span className="text-xs text-muted-foreground">{length}</span>}
-      </div>
+      <p className="text-sm font-medium">Program length</p>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="len-start" className="text-xs text-muted-foreground">Start</Label>
-          <Input
-            id="len-start"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
+          <Label className="text-xs text-muted-foreground">Start date</Label>
+          <DatePicker value={startDate} onChange={setStartDate} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="len-end" className="text-xs text-muted-foreground">End</Label>
+          <Label htmlFor="len-weeks" className="text-xs text-muted-foreground">Length (weeks)</Label>
           <Input
-            id="len-end"
-            type="date"
-            value={endDate}
-            min={startDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            id="len-weeks"
+            type="number"
+            min="1"
+            inputMode="numeric"
+            value={weeks}
+            onChange={(e) => setWeeks(e.target.value)}
+            placeholder="e.g. 8"
           />
         </div>
       </div>
+      {endLabel && (
+        <p className="text-xs text-muted-foreground">Ends {endLabel}</p>
+      )}
       <Button size="sm" onClick={handleSave} disabled={saving || !changed}>
         {saving ? "Saving…" : "Save length"}
       </Button>
