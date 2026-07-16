@@ -299,3 +299,45 @@ create policy "System can insert PRs" on personal_records
 
 create policy "System can update PRs" on personal_records
   for update using (client_id = auth.uid());
+
+-- ============================================================
+-- SESSION TEMPLATES (reusable single sessions)
+-- ============================================================
+
+create table if not exists session_templates (
+  id uuid primary key default uuid_generate_v4(),
+  coach_id uuid not null references profiles(id) on delete cascade,
+  name text not null,
+  session_type text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists session_template_exercises (
+  id uuid primary key default uuid_generate_v4(),
+  session_template_id uuid not null references session_templates(id) on delete cascade,
+  exercise_id uuid not null references exercises(id) on delete cascade,
+  block_type text not null default 'strength',
+  sets integer not null default 3,
+  reps text not null default '10',
+  weight_kg numeric(6,2),
+  rest_seconds integer not null default 0,
+  work_seconds integer,
+  intensity text,
+  order_index integer not null default 0,
+  superset_group text,
+  notes text
+);
+
+alter table session_templates enable row level security;
+alter table session_template_exercises enable row level security;
+
+create policy "Coaches manage their session templates" on session_templates
+  for all using (coach_id = auth.uid());
+
+create policy "Coaches manage their session template exercises" on session_template_exercises
+  for all using (
+    exists (
+      select 1 from session_templates st
+      where st.id = session_template_exercises.session_template_id and st.coach_id = auth.uid()
+    )
+  );

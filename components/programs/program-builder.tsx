@@ -29,6 +29,8 @@ import {
   createSuperset,
   dissolveSuperset,
   reorderWorkoutExercises,
+  saveSessionAsTemplate,
+  addSessionTemplateToProgram,
 } from "@/lib/actions/programs";
 import { NewExerciseDialog } from "@/components/exercises/new-exercise-dialog";
 import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
@@ -43,7 +45,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2, Pencil, Clock } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2, Pencil, Clock, BookMarked } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -533,6 +535,12 @@ function WorkoutCard({
     onUpdate();
   }
 
+  async function handleSaveSession() {
+    const { error } = await saveSessionAsTemplate(workout.id);
+    if (error) { toast.error(error); return; }
+    toast.success(`"${workout.name}" saved to your sessions`);
+  }
+
   return (
     <Card className={cn(isActive && "ring-1 ring-primary/50")}>
       <CardHeader className="pb-2">
@@ -579,6 +587,9 @@ function WorkoutCard({
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
             )}
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveSession} title="Save as session template">
+              <BookMarked className="h-3.5 w-3.5" />
+            </Button>
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleDuplicateWorkout} title="Duplicate">
               <Copy className="h-3.5 w-3.5" />
             </Button>
@@ -669,15 +680,24 @@ export function ProgramBuilder({
   programId,
   initialWorkouts,
   exercises,
+  sessionTemplates = [],
 }: {
   programId: string;
   initialWorkouts: Workout[];
   exercises: Exercise[];
+  sessionTemplates?: { id: string; name: string; session_type: string | null }[];
 }) {
   const router = useRouter();
   const [newWorkoutName, setNewWorkoutName] = useState("");
   const [newWorkoutType, setNewWorkoutType] = useState<string>("none");
   const [addingWorkout, setAddingWorkout] = useState(false);
+
+  async function handleAddSessionTemplate(sessionTemplateId: string) {
+    const { error } = await addSessionTemplateToProgram({ programId, sessionTemplateId });
+    if (error) { toast.error(error); return; }
+    toast.success("Session added");
+    router.refresh();
+  }
 
   // The workout day the side "Add exercise" panel currently targets.
   const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(
@@ -839,6 +859,24 @@ export function ProgramBuilder({
           <Plus className="mr-2 h-4 w-4" /> Add workout
         </Button>
       </form>
+
+      {sessionTemplates.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <span className="text-sm text-muted-foreground shrink-0">Or add a saved session:</span>
+          <Select value="" onValueChange={(v) => v && handleAddSessionTemplate(v)}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Choose a saved session…" />
+            </SelectTrigger>
+            <SelectContent>
+              {sessionTemplates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}{t.session_type ? ` · ${t.session_type}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       </div>
 

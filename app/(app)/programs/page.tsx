@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowRight, BookOpen, Plus } from "lucide-react";
 import { AssignTemplateDialog } from "@/components/programs/assign-template-dialog";
+import { SessionTemplatesManager } from "@/components/programs/session-templates-manager";
 import { cn } from "@/lib/utils";
 import type { Profile, Program } from "@/lib/types";
 
@@ -18,7 +19,7 @@ export default async function ProgramsPage() {
   const profile = profileData as Pick<Profile, "role"> | null;
   if (profile?.role !== "coach") redirect("/home");
 
-  const [{ data: programsData }, { data: clientsData }] = await Promise.all([
+  const [{ data: programsData }, { data: clientsData }, { data: sessionTemplatesData }] = await Promise.all([
     admin
       .from("programs")
       .select("id, name, description, created_at")
@@ -31,11 +32,17 @@ export default async function ProgramsPage() {
       .eq("coach_id", user.id)
       .eq("role", "client")
       .order("full_name"),
+    admin
+      .from("session_templates")
+      .select("id, name, session_type")
+      .eq("coach_id", user.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   const programs = programsData as Pick<Program, "id" | "name" | "description" | "created_at">[] | null;
   const clients = ((clientsData ?? []) as { id: string; full_name: string | null; email: string }[])
     .map((c) => ({ id: c.id, name: c.full_name ?? c.email }));
+  const sessionTemplates = (sessionTemplatesData ?? []) as { id: string; name: string; session_type: string | null }[];
 
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6 space-y-6">
@@ -82,6 +89,8 @@ export default async function ProgramsPage() {
           </CardContent>
         </Card>
       )}
+
+      <SessionTemplatesManager templates={sessionTemplates} />
     </div>
   );
 }

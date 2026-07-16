@@ -70,6 +70,13 @@ export default async function ProgramDetailPage({
     .eq("coach_id", user.id)
     .order("name");
 
+  const { data: sessionTemplatesData } = await admin
+    .from("session_templates")
+    .select("id, name, session_type")
+    .eq("coach_id", user.id)
+    .order("created_at", { ascending: false });
+  const sessionTemplates = (sessionTemplatesData ?? []) as { id: string; name: string; session_type: string | null }[];
+
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4">
       <div className="flex items-center gap-3">
@@ -89,6 +96,7 @@ export default async function ProgramDetailPage({
         programId={id}
         initialWorkouts={(workoutsData ?? []) as Parameters<typeof ProgramBuilder>[0]["initialWorkouts"]}
         exercises={(exercisesData ?? []) as Parameters<typeof ProgramBuilder>[0]["exercises"]}
+        sessionTemplates={sessionTemplates}
       />
     </div>
   );

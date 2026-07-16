@@ -602,3 +602,102 @@ export async function reorderWorkoutExercises(params: {
   revalidatePath(`/programs/${programId}`);
   return {};
 }
+
+// ── Session templates (reusable single sessions) ───────────────────────────
+
+// Saves one workout day (with its exercises) as a reusable session template.
+export async function saveSessionAsTemplate(workoutId: string): Promise<{ error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const programId = await ownedProgramForWorkout(admin, workoutId, user.id);
+  if (!programId) return { error: "Not authorized" };
+
+  const { data: w } = await admin
+    .from("program_workouts")
+    .select("name, session_type")
+    .eq("id", workoutId)
+    .single();
+  const src = w as { name: string; session_type: string | null } | null;
+  if (!src) return { error: "Session not found" };
+
+  const { data: st, error: stErr } = await admin
+    .from("session_templates")
+    .insert({ coach_id: user.id, name: src.name, session_type: src.session_type } as never)
+    .select("id")
+    .single();
+  if (stErr || !st) return { error: stErr?.message ?? "Failed to save session" };
+  const templateId = (st as { id: string }).id;
+
+  const { data: wes } = await admin
+    .from("workout_exercises")
+    .select("exercise_id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, order_index, superset_group, notes")
+    .eq("workout_id", workoutId);
+  const rows = ((wes ?? []) as Array<Record<string, unknown>>).map((we) => ({ ...we, session_template_id: templateId }));
+  if (rows.length > 0) {
+    const { error: eErr } = await admin.from("session_template_exercises").insert(rows as never);
+    if (eErr) return { error: eErr.message };
+  }
+  revalidatePath("/programs");
+  return {};
+}
+
+// Adds a saved session template into a program as a new day (deep copy).
+export async function addSessionTemplateToProgram(params: {
+  programId: string;
+  sessionTemplateId: string;
+}): Promise<{ error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  if (!(await ownsProgram(admin, params.programId, user.id))) return { error: "Not authorized" };
+
+  const { data: st } = await admin
+    .from("session_templates")
+    .select("coach_id, name, session_type")
+    .eq("id", params.sessionTemplateId)
+    .single();
+  const s = st as { coach_id: string; name: string; session_type: string | null } | null;
+  if (!s || s.coach_id !== user.id) return { error: "Not authorized" };
+
+  const { data: last } = await admin
+    .from("program_workouts")
+    .select("day_order")
+    .eq("program_id", params.programId)
+    .order("day_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const dayOrder = ((last as { day_order: number } | null)?.day_order ?? -1) + 1;
+
+  const { data: newW, error: wErr } = await admin
+    .from("program_workouts")
+    .insert({ program_id: params.programId, name: s.name, session_type: s.session_type, day_order: dayOrder } as never)
+    .select("id")
+    .single();
+  if (wErr || !newW) return { error: wErr?.message ?? "Failed to add session" };
+  const newWorkoutId = (newW as { id: string }).id;
+
+  const { data: stes } = await admin
+    .from("session_template_exercises")
+    .select("exercise_id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, order_index, superset_group, notes")
+    .eq("session_template_id", params.sessionTemplateId);
+  const rows = ((stes ?? []) as Array<Record<string, unknown>>).map((e) => ({ ...e, workout_id: newWorkoutId }));
+  if (rows.length > 0) {
+    const { error: eErr } = await admin.from("workout_exercises").insert(rows as never);
+    if (eErr) return { error: eErr.message };
+  }
+  revalidatePath(`/programs/${params.programId}`);
+  return {};
+}
+
+export async function deleteSessionTemplate(id: string): Promise<{ error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const { data: st } = await admin.from("session_templates").select("coach_id").eq("id", id).single();
+  if ((st as { coach_id: string } | null)?.coach_id !== user.id) return { error: "Not authorized" };
+  const { error } = await admin.from("session_templates").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/programs");
+  return {};
+}
