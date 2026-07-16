@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { ProgramBuilder } from "@/components/programs/program-builder";
+import { ProgramNameEditor } from "@/components/programs/program-name-editor";
 import { cn } from "@/lib/utils";
 import type { Profile, Program } from "@/lib/types";
 
@@ -84,8 +85,8 @@ export default async function ProgramDetailPage({
           <ArrowLeft className="h-4 w-4" />
           {backLabel}
         </Link>
-        <div>
-          <h1 className="text-xl font-bold">{program.name}</h1>
+        <div className="min-w-0">
+          <ProgramNameEditor programId={id} name={program.name} className="text-xl font-bold" />
           {program.description && (
             <p className="text-sm text-muted-foreground">{program.description}</p>
           )}

@@ -139,6 +139,21 @@ export async function saveProgramAsTemplate(programId: string): Promise<{ error?
   return { id: newId };
 }
 
+// Renames a program (template or client program).
+export async function renameProgram(programId: string, name: string): Promise<{ error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Name required" };
+  const admin = createAdminClient();
+  if (!(await ownsProgram(admin, programId, user.id))) return { error: "Not authorized" };
+  const { error } = await admin.from("programs").update({ name: trimmed } as never).eq("id", programId);
+  if (error) return { error: error.message };
+  revalidatePath("/programs");
+  revalidatePath(`/programs/${programId}`);
+  return {};
+}
+
 // Assigns a template to a client by deep-copying it into a new client-specific
 // program, then creating the assignment — so each client's copy is independent.
 export async function assignTemplate(params: {

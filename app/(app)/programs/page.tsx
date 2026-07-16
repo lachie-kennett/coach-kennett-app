@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { ArrowRight, BookOpen, Plus } from "lucide-react";
 import { AssignTemplateDialog } from "@/components/programs/assign-template-dialog";
 import { SessionTemplatesManager } from "@/components/programs/session-templates-manager";
+import { ProgramNameEditor } from "@/components/programs/program-name-editor";
 import { cn } from "@/lib/utils";
 import type { Profile, Program } from "@/lib/types";
 
@@ -61,19 +62,23 @@ export default async function ProgramsPage() {
           {programs.map((p) => (
             <Card key={p.id} className="hover:bg-secondary/30 transition-colors">
               <CardContent className="flex items-center justify-between gap-3 py-4">
-                <Link href={`/programs/${p.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/20">
                     <BookOpen className="h-4 w-4 text-primary" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium truncate">{p.name}</p>
+                    <ProgramNameEditor programId={p.id} name={p.name} className="font-medium" />
                     {p.description && (
                       <p className="text-sm text-muted-foreground line-clamp-1">{p.description}</p>
                     )}
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 ml-1" />
-                </Link>
-                <AssignTemplateDialog templateId={p.id} templateName={p.name} clients={clients} />
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link href={`/programs/${p.id}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}>
+                    Open <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <AssignTemplateDialog templateId={p.id} templateName={p.name} clients={clients} />
+                </div>
               </CardContent>
             </Card>
           ))}
