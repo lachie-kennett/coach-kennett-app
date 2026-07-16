@@ -10,7 +10,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { assignProgram } from "@/lib/actions/programs";
+import { assignTemplate } from "@/lib/actions/programs";
 
 interface Program { id: string; name: string }
 
@@ -34,19 +34,19 @@ export function AssignProgramDialog({
     if (!programId) return;
     setLoading(true);
 
-    try {
-      await assignProgram({
-        clientId,
-        programId,
-        startDate,
-        endDate: endDate || null,
-      });
+    const result = await assignTemplate({
+      templateId: programId,
+      clientId,
+      startDate,
+      endDate: endDate || null,
+    });
+    if (result.error) {
+      toast.error(result.error);
+    } else {
       toast.success("Program assigned");
       setOpen(false);
       setProgramId("");
       setEndDate("");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to assign program");
     }
     setLoading(false);
   }

@@ -66,6 +66,127 @@ export async function assignProgram(params: {
   revalidatePath(`/clients/${params.clientId}`);
 }
 
+// Deep-copies a program (its workout days and every exercise) into a brand new
+// program. Used to save a client program as a reusable template and to give
+// each client their own independent copy when a template is assigned.
+async function deepCopyProgram(
+  admin: ReturnType<typeof createAdminClient>,
+  sourceProgramId: string,
+  target: { coachId: string; clientId: string | null; name: string; description: string | null }
+): Promise<string | null> {
+  const { data: created, error: pErr } = await admin
+    .from("programs")
+    .insert({
+      coach_id: target.coachId,
+      name: target.name,
+      description: target.description,
+      client_id: target.clientId,
+    } as never)
+    .select("id")
+    .single();
+  if (pErr || !created) return null;
+  const newProgramId = (created as { id: string }).id;
+
+  const { data: workouts } = await admin
+    .from("program_workouts")
+    .select("id, name, day_order, session_type")
+    .eq("program_id", sourceProgramId)
+    .order("day_order");
+
+  for (const w of (workouts ?? []) as Array<{ id: string; name: string; day_order: number; session_type: string | null }>) {
+    const { data: newW, error: wErr } = await admin
+      .from("program_workouts")
+      .insert({ program_id: newProgramId, name: w.name, day_order: w.day_order, session_type: w.session_type } as never)
+      .select("id")
+      .single();
+    if (wErr || !newW) return null;
+    const newWorkoutId = (newW as { id: string }).id;
+
+    const { data: wes } = await admin
+      .from("workout_exercises")
+      .select("exercise_id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, order_index, superset_group, notes")
+      .eq("workout_id", w.id);
+    const rows = ((wes ?? []) as Array<Record<string, unknown>>).map((we) => ({ ...we, workout_id: newWorkoutId }));
+    if (rows.length > 0) {
+      const { error: eErr } = await admin.from("workout_exercises").insert(rows as never);
+      if (eErr) return null;
+    }
+  }
+  return newProgramId;
+}
+
+// Saves an existing program as a reusable template (a program with no client).
+export async function saveProgramAsTemplate(programId: string): Promise<{ error?: string; id?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const { data: src } = await admin
+    .from("programs")
+    .select("coach_id, name, description")
+    .eq("id", programId)
+    .single();
+  const s = src as { coach_id: string; name: string; description: string | null } | null;
+  if (!s || s.coach_id !== user.id) return { error: "Not authorized" };
+
+  const newId = await deepCopyProgram(admin, programId, {
+    coachId: user.id,
+    clientId: null,
+    name: s.name,
+    description: s.description,
+  });
+  if (!newId) return { error: "Failed to save template" };
+  revalidatePath("/programs");
+  return { id: newId };
+}
+
+// Assigns a template to a client by deep-copying it into a new client-specific
+// program, then creating the assignment — so each client's copy is independent.
+export async function assignTemplate(params: {
+  templateId: string;
+  clientId: string;
+  startDate: string;
+  endDate: string | null;
+}): Promise<{ error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+
+  const { data: src } = await admin
+    .from("programs")
+    .select("coach_id, name, description")
+    .eq("id", params.templateId)
+    .single();
+  const s = src as { coach_id: string; name: string; description: string | null } | null;
+  if (!s || s.coach_id !== user.id) return { error: "Not authorized" };
+
+  const { data: client } = await admin
+    .from("profiles")
+    .select("coach_id")
+    .eq("id", params.clientId)
+    .single();
+  if ((client as { coach_id: string } | null)?.coach_id !== user.id) return { error: "Not authorized" };
+
+  const newId = await deepCopyProgram(admin, params.templateId, {
+    coachId: user.id,
+    clientId: params.clientId,
+    name: s.name,
+    description: s.description,
+  });
+  if (!newId) return { error: "Failed to assign program" };
+
+  const { error } = await admin.from("client_programs").insert({
+    client_id: params.clientId,
+    program_id: newId,
+    start_date: params.startDate,
+    end_date: params.endDate,
+    assigned_by: user.id,
+    is_active: true,
+  } as never);
+  if (error) return { error: error.message };
+  revalidatePath(`/clients/${params.clientId}`);
+  return {};
+}
+
 // Updates the start/end dates (i.e. the length) of a client's program assignment.
 export async function updateAssignmentDates(params: {
   clientId: string;

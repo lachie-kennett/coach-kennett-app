@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, Dumbbell, Pencil, Play, Clock } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { ProgramLengthEditor } from "@/components/programs/program-length-editor";
+import { SaveAsTemplateButton } from "@/components/programs/save-as-template-button";
 import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
 
@@ -110,10 +111,11 @@ export default async function ClientProgramPage({
             <p className="text-sm text-muted-foreground mt-1">{assignment.programs.description}</p>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex flex-wrap items-center justify-end gap-2 mt-1">
           <Badge variant={assignment.is_active ? "default" : "secondary"}>
             {assignment.is_active ? "Active" : "Past"}
           </Badge>
+          <SaveAsTemplateButton programId={programId} />
           <Link
             href={`/programs/${programId}?clientId=${clientId}`}
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
