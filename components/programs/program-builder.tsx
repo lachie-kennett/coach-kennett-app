@@ -387,12 +387,7 @@ function SortableExerciseRow({
         <span className="w-4 shrink-0" />
       )}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium truncate">{we.exercises?.name}</p>
-          {we.block_type === "conditioning" && (
-            <Badge variant="secondary" className="text-[10px] shrink-0 px-1.5 py-0">Cond</Badge>
-          )}
-        </div>
+        <p className="text-sm font-medium truncate">{we.exercises?.name}</p>
         <p className="text-xs text-muted-foreground truncate">
           {we.block_type === "conditioning"
             ? conditioningSummary(we)
