@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: "Training platform for Coach Kennett clients",
   manifest: "/manifest.json",
   icons: {
+    icon: "/icon-192.png",
+    shortcut: "/icon-192.png",
     apple: "/icon-192.png",
   },
   appleWebApp: {
