@@ -8,6 +8,8 @@ export async function createProgram(params: {
   name: string;
   description: string | null;
   clientId?: string;
+  startDate?: string;
+  endDate?: string | null;
 }): Promise<{ id: string }> {
   const user = await getSessionUser();
   if (!user) throw new Error("Not authenticated");
@@ -32,8 +34,8 @@ export async function createProgram(params: {
     await admin.from("client_programs").insert({
       client_id: params.clientId,
       program_id: id,
-      start_date: new Date().toISOString().split("T")[0],
-      end_date: null,
+      start_date: params.startDate ?? new Date().toISOString().split("T")[0],
+      end_date: params.endDate ?? null,
       assigned_by: user.id,
       is_active: true,
     } as never);
