@@ -2,6 +2,18 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/supabase/server";
+import { sendOnboardingEmail } from "@/lib/email";
+
+// Turns a full name into the standard password: each word capitalised, no
+// spaces (e.g. "Ollie Langford" -> "OllieLangford").
+function nameToPassword(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join("");
+}
 
 export type ImportRow = {
   name: string;
@@ -27,7 +39,10 @@ function generateTempPassword(): string {
   return pw;
 }
 
-export async function addClient(name: string, email: string, password: string) {
+export async function addClient(
+  name: string,
+  email: string
+): Promise<{ error?: string; success?: boolean; password?: string; emailed?: boolean }> {
   const user = await getSessionUser();
   if (!user) return { error: "Not authenticated" };
 
@@ -35,11 +50,18 @@ export async function addClient(name: string, email: string, password: string) {
   const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single();
   if (profile?.role !== "coach") return { error: "Not authorized" };
 
+  const fullName = name.trim();
+  const cleanEmail = email.trim().toLowerCase();
+  const password = nameToPassword(fullName);
+  if (password.length < 6) {
+    return { error: "Name is too short to make a password from — please use their full name." };
+  }
+
   const { data: authData, error: createError } = await admin.auth.admin.createUser({
-    email: email.trim().toLowerCase(),
+    email: cleanEmail,
     password,
     email_confirm: true,
-    user_metadata: { full_name: name.trim(), role: "client" },
+    user_metadata: { full_name: fullName, role: "client" },
   });
 
   if (createError) return { error: createError.message };
@@ -48,7 +70,10 @@ export async function addClient(name: string, email: string, password: string) {
     await admin.from("profiles").update({ coach_id: user.id }).eq("id", authData.user.id);
   }
 
-  return { success: true };
+  // Fire off the onboarding email (no-op if email isn't configured yet).
+  const emailed = await sendOnboardingEmail({ to: cleanEmail, name: fullName, password });
+
+  return { success: true, password, emailed };
 }
 
 export async function importClients(rows: ImportRow[]): Promise<ImportResult[]> {
