@@ -32,6 +32,33 @@ export async function signIn(email: string, password: string) {
   }
 }
 
+// Returns a currently-valid access token, transparently refreshing it (and
+// re-saving the session cookie) if the stored one has expired. Now that sessions
+// last for months, the original access token is usually long gone.
+async function getValidAccessToken(): Promise<string | null> {
+  const session = await getServerSession();
+  if (!session?.access_token) return null;
+
+  const expiresAt = (session.expires_at as number | undefined) ?? 0;
+  if (expiresAt * 1000 > Date.now() + 60_000) {
+    return session.access_token as string; // still valid for >60s
+  }
+
+  const refreshToken = session.refresh_token as string | undefined;
+  if (!refreshToken) return session.access_token as string;
+
+  const res = await fetch(`${URL}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: { ...BASE_HEADERS, Authorization: `Bearer ${ANON}` },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!res.ok) return session.access_token as string;
+
+  const data = await res.json();
+  await setSessionCookie(data);
+  return data.access_token as string;
+}
+
 export async function signOut() {
   const session = await getServerSession();
   if (session?.access_token) {
@@ -73,12 +100,12 @@ export async function resetPassword(accessToken: string, newPassword: string): P
 }
 
 export async function changePassword(newPassword: string) {
-  const session = await getServerSession();
-  if (!session?.access_token) return { error: "Not authenticated" };
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) return { error: "Not authenticated" };
 
   const res = await fetch(`${URL}/auth/v1/user`, {
     method: "PUT",
-    headers: { ...BASE_HEADERS, Authorization: `Bearer ${session.access_token}` },
+    headers: { ...BASE_HEADERS, Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ password: newPassword }),
   });
 

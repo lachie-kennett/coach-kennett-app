@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { startWorkoutLog, logSet, saveExerciseLog, finishWorkoutLog, cancelWorkoutLog, addSessionExercise, getCoachExercisesForLog } from "@/lib/actions/workouts";
+import { startWorkoutLog, savePageSets, saveExerciseLog, finishWorkoutLog, cancelWorkoutLog, addSessionExercise, getCoachExercisesForLog } from "@/lib/actions/workouts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { VideoPreviewButton } from "@/components/workouts/video-preview-button";
-import { Check, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Trophy, X, Timer, Plus, Minus, Search, Dumbbell } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Trophy, X, Timer, Plus, Minus, Search, Dumbbell, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { conditioningSummary } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
@@ -153,11 +153,18 @@ export function WorkoutPlayer({
   const [workoutLogId, setWorkoutLogId] = useState<string | null>(null);
   const [sets, setSets] = useState<Record<string, SetEntry[]>>({});
   const [showRest, setShowRest] = useState(false);
-  const [showRestButton, setShowRestButton] = useState(false);
   const [restSeconds, setRestSeconds] = useState(90);
   const [showFinish, setShowFinish] = useState(false);
   const [saving, setSaving] = useState(false);
   const startedRef = useRef(false);
+
+  // Key under which this in-progress session is saved on the device, so leaving
+  // the app / getting logged out / switching tabs never loses entered weights.
+  const draftKey = `ck-wdraft:${forClient?.id ?? "self"}:${workout.id}`;
+  // True once we've restored a saved draft — the "seed from last session" effect
+  // is skipped in that case so we don't overwrite what the athlete already typed.
+  const hydrationDoneRef = useRef(false);
+  const [hydrated, setHydrated] = useState(false);
 
   // Per-exercise notes and RPE
   const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>({});
@@ -166,10 +173,16 @@ export function WorkoutPlayer({
   // Ad-hoc exercises added during the session (or pre-loaded for custom sessions)
   const [adHocExercises, setAdHocExercises] = useState<AdHocExercise[]>(initialAdHocExercises);
 
+  // Substitutions: prescribed exercise id -> the exercise it was swapped for.
+  // The set inputs stay keyed by the original id; only what's logged/shown changes.
+  const [swaps, setSwaps] = useState<Record<string, { sessionExId: string; exercise: Exercise }>>({});
+
   // Exercise picker dialog
   const [showExPicker, setShowExPicker] = useState(false);
   const [pickerExercises, setPickerExercises] = useState<PickerExercise[]>([]);
   const [pickerSearch, setPickerSearch] = useState("");
+  const [pickerMode, setPickerMode] = useState<"add" | "swap">("add");
+  const [swapTargetId, setSwapTargetId] = useState<string | null>(null);
 
   // Session-level notes and RPE (for finish dialog)
   const [sessionNotes, setSessionNotes] = useState("");
@@ -220,7 +233,45 @@ export function WorkoutPlayer({
   // Most recent previous session
   const mostRecent = previousSessions[0];
 
-  // Start the workout log on mount (skip if free session already created)
+  // Restore an in-progress session from the device (runs once, before the
+  // start-log and seed effects). If a draft exists we reuse its workout log id
+  // and everything the athlete already entered.
+  useEffect(() => {
+    if (typeof window === "undefined") { setHydrated(true); return; }
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw) as {
+          workoutLogId?: string | null;
+          currentExIdx?: number;
+          sets?: Record<string, SetEntry[]>;
+          exerciseNotes?: Record<string, string>;
+          exerciseRpe?: Record<string, number | null>;
+          adHocExercises?: AdHocExercise[];
+          swaps?: Record<string, { sessionExId: string; exercise: Exercise }>;
+        };
+        if (d.sets) setSets(d.sets);
+        if (d.exerciseNotes) setExerciseNotes(d.exerciseNotes);
+        if (d.exerciseRpe) setExerciseRpe(d.exerciseRpe);
+        if (d.adHocExercises) setAdHocExercises(d.adHocExercises);
+        if (d.swaps) setSwaps(d.swaps);
+        if (typeof d.currentExIdx === "number") setCurrentExIdx(d.currentExIdx);
+        // Reuse the existing log so we don't spawn a fresh (empty) one on return.
+        if (!freeSessionLogId && d.workoutLogId) {
+          setWorkoutLogId(d.workoutLogId);
+          startedRef.current = true;
+        }
+        hydrationDoneRef.current = true;
+      }
+    } catch {
+      // Corrupt draft — ignore and start clean.
+    }
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Start the workout log on mount (skip if free session already created, or if
+  // we restored an existing log from a saved draft above).
   useEffect(() => {
     if (freeSessionLogId) {
       setWorkoutLogId(freeSessionLogId);
@@ -239,8 +290,10 @@ export function WorkoutPlayer({
     startLog();
   }, [workout.id, freeSessionLogId]);
 
-  // Init set entries and exercise notes from most recent session
+  // Init set entries and exercise notes from most recent session. Skipped when we
+  // restored an in-progress draft, so we never clobber what's already entered.
   useEffect(() => {
+    if (hydrationDoneRef.current) return;
     const initSets: Record<string, SetEntry[]> = {};
     const initNotes: Record<string, string> = {};
     const initRpe: Record<string, number | null> = {};
@@ -280,6 +333,20 @@ export function WorkoutPlayer({
     setExerciseRpe(initRpe);
   }, [exercises, mostRecent]);
 
+  // Continuously save the session to the device so nothing is lost on logout,
+  // backgrounding the app, or navigating to another tab. Gated on `hydrated` so
+  // the first render can't overwrite a saved draft with empty initial state.
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(draftKey, JSON.stringify({
+        workoutLogId, currentExIdx, sets, exerciseNotes, exerciseRpe, adHocExercises, swaps,
+      }));
+    } catch {
+      // Storage full/unavailable — nothing we can do, keep going.
+    }
+  }, [hydrated, draftKey, workoutLogId, currentExIdx, sets, exerciseNotes, exerciseRpe, adHocExercises, swaps]);
+
   function updateSet(weId: string, setIdx: number, field: "reps" | "weight", value: string) {
     setSets((prev) => {
       const copy = [...(prev[weId] ?? [])];
@@ -288,52 +355,48 @@ export function WorkoutPlayer({
     });
   }
 
-  async function completeSet(
-    weOrAhId: string,
-    exerciseId: string,
-    exerciseName: string,
-    setIdx: number,
-    restSecs: number,
-    isAdHoc: boolean,
-  ) {
-    if (!workoutLogId) return;
-    const entry = sets[weOrAhId]?.[setIdx];
-    if (!entry) return;
-
-    const weightKg = entry.weight ? parseFloat(entry.weight) : null;
-    const repsCompleted = entry.reps ? parseInt(entry.reps) : null;
-
-    let isPR = false;
-    try {
-      const result = await logSet({
-        workoutLogId,
-        workoutExerciseId: isAdHoc ? null : weOrAhId,
-        sessionExerciseId: isAdHoc ? weOrAhId : null,
-        exerciseId,
-        setNumber: setIdx + 1,
-        repsCompleted,
-        weightKg,
-        forClientId: forClient?.id,
-      });
-      isPR = result.isPR;
-    } catch {
-      toast.error("Failed to save set");
-      return;
-    }
-
-    if (isPR) toast.success(`New PR on ${exerciseName}!`, { icon: "🏆" });
-
-    setSets((prev) => {
-      const copy = [...(prev[weOrAhId] ?? [])];
-      copy[setIdx] = { ...copy[setIdx], completed: true, isPR };
-      return { ...prev, [weOrAhId]: copy };
+  // Save every set on the current page to the DB. Called when moving between
+  // exercises (and on finish) so the athlete never ticks sets off individually.
+  // Idempotent server-side, so bouncing back and forth won't duplicate rows.
+  function saveCurrentPage(page: BlockItem[] = currentPage) {
+    if (!workoutLogId || !page) return;
+    const entries = page.map((item) => {
+      const conditioningDone = item.blockType === "conditioning" && !!sets[item.id]?.[0]?.completed;
+      const swap = swaps[item.id];
+      return {
+        // A swapped exercise logs against its session_exercise, not the original.
+        workoutExerciseId: item.isAdHoc || swap ? null : item.id,
+        sessionExerciseId: swap ? swap.sessionExId : item.isAdHoc ? item.id : null,
+        exerciseId: swap ? swap.exercise.id : item.exercise.id,
+        keepEmpty: conditioningDone,
+        sets: (sets[item.id] ?? []).map((e, i) => ({
+          setNumber: i + 1,
+          repsCompleted: e.reps.trim() ? parseInt(e.reps) : null,
+          weightKg: e.weight.trim() ? parseFloat(e.weight) : null,
+        })),
+      };
     });
+    // Fire-and-forget so page changes stay instant; the device draft is the
+    // safety net if this write is slow or fails.
+    savePageSets({ workoutLogId, forClientId: forClient?.id, entries })
+      .then(({ prExerciseIds }) => {
+        for (const exId of prExerciseIds) {
+          const name = page.find((p) => p.exercise.id === exId)?.exercise.name;
+          if (name) toast.success(`New PR on ${name}!`, { icon: "🏆" });
+        }
+      })
+      .catch(() => {
+        toast.error("Couldn't sync — your entries are saved on this device.");
+      });
+  }
 
-    // Offer a rest only when one is prescribed, and not on the final set.
-    if (restSecs > 0 && totalCompleted + 1 < totalSets) {
-      setRestSeconds(restSecs);
-      setShowRestButton(true);
-    }
+  function goTo(idx: number) {
+    saveCurrentPage();
+    setCurrentExIdx(idx);
+  }
+
+  function markConditioningDone(id: string) {
+    setSets((prev) => ({ ...prev, [id]: [{ ...(prev[id]?.[0] ?? { reps: "", weight: "", isPR: false }), completed: true }] }));
   }
 
   async function handleExerciseRpe(weId: string, rpe: number) {
@@ -372,8 +435,10 @@ export function WorkoutPlayer({
     });
   }
 
-  async function openExercisePicker() {
+  async function openExercisePicker(mode: "add" | "swap" = "add", targetId?: string) {
     if (!workoutLogId) return;
+    setPickerMode(mode);
+    setSwapTargetId(targetId ?? null);
     setPickerSearch("");
     setShowExPicker(true);
     if (pickerExercises.length === 0) {
@@ -385,39 +450,64 @@ export function WorkoutPlayer({
   async function handlePickExercise(ex: PickerExercise) {
     if (!workoutLogId) return;
     setShowExPicker(false);
+    const exercise: Exercise = { ...ex, muscle_groups: ex.muscle_groups ?? [] };
     try {
       const sessionExId = await addSessionExercise({ workoutLogId, exerciseId: ex.id });
-      const adHocEx: AdHocExercise = { sessionExId, exercise: { ...ex, muscle_groups: ex.muscle_groups ?? [] } };
-      setAdHocExercises((prev) => [...prev, adHocEx]);
-      setSets((prev) => ({
-        ...prev,
-        [sessionExId]: [{ reps: "", weight: "", completed: false, isPR: false }, { reps: "", weight: "", completed: false, isPR: false }, { reps: "", weight: "", completed: false, isPR: false }],
-      }));
-      setCurrentExIdx(programPages.length + adHocExercises.length);
+      if (pickerMode === "swap" && swapTargetId) {
+        // Keep the original's set inputs; just log/show the substitute instead.
+        setSwaps((prev) => ({ ...prev, [swapTargetId]: { sessionExId, exercise } }));
+        toast.success(`Swapped in ${ex.name}`);
+      } else {
+        setAdHocExercises((prev) => [...prev, { sessionExId, exercise }]);
+        setSets((prev) => ({
+          ...prev,
+          [sessionExId]: [{ reps: "", weight: "", completed: false, isPR: false }, { reps: "", weight: "", completed: false, isPR: false }, { reps: "", weight: "", completed: false, isPR: false }],
+        }));
+        setCurrentExIdx(programPages.length + adHocExercises.length);
+      }
     } catch {
-      toast.error("Failed to add exercise");
+      toast.error(pickerMode === "swap" ? "Failed to swap exercise" : "Failed to add exercise");
     }
+  }
+
+  function undoSwap(originalId: string) {
+    setSwaps((prev) => {
+      const next = { ...prev };
+      delete next[originalId];
+      return next;
+    });
   }
 
   const returnPath = forClient ? `/clients/${forClient.id}` : "/home";
   const cancelPath = forClient ? `/clients/${forClient.id}` : "/workouts";
 
+  function clearDraft() {
+    if (typeof window !== "undefined") {
+      try { window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    }
+  }
+
   async function finishWorkout() {
     if (!workoutLogId || saving) return;
     setSaving(true);
     await finishWorkoutLog(workoutLogId, sessionNotes || null, sessionRpe);
+    clearDraft();
     toast.success(forClient ? `Logged for ${forClient.name}!` : "Workout complete! Great work.");
     router.push(returnPath);
   }
 
   async function cancelWorkout() {
-    if (!workoutLogId) return router.push(cancelPath);
+    if (!workoutLogId) { clearDraft(); return router.push(cancelPath); }
     if (!confirm("Cancel this workout? Progress will be lost.")) return;
     await cancelWorkoutLog(workoutLogId);
+    clearDraft();
     router.push(cancelPath);
   }
 
-  const totalCompleted = Object.values(sets).reduce((sum, arr) => sum + arr.filter((s) => s.completed).length, 0);
+  // A set counts as "done" once it has data entered (or a conditioning block has
+  // been marked done) — no separate tick required.
+  const isDone = (s: SetEntry) => s.completed || s.reps.trim() !== "" || s.weight.trim() !== "";
+  const totalCompleted = Object.values(sets).reduce((sum, arr) => sum + arr.filter(isDone).length, 0);
   const totalSets = exercises.reduce((sum, we) => sum + (sets[we.id]?.length ?? we.sets), 0)
     + adHocExercises.reduce((sum, ah) => sum + (sets[ah.sessionExId]?.length ?? 0), 0);
   const overallProgress = totalSets > 0 ? (totalCompleted / totalSets) * 100 : 0;
@@ -460,6 +550,13 @@ export function WorkoutPlayer({
           {currentPage.map((item, itemIdx) => {
             const isSuperset = currentPage.length > 1;
             const entries = sets[item.id] ?? [];
+            const swap = swaps[item.id];
+            const displayExercise = swap?.exercise ?? item.exercise;
+            const lastSets = !item.isAdHoc && !swap
+              ? (mostRecent?.set_logs ?? [])
+                  .filter((sl) => sl.workout_exercise_id === item.id)
+                  .sort((a, b) => a.set_number - b.set_number)
+              : [];
             return (
               <div
                 key={item.id}
@@ -475,12 +572,31 @@ export function WorkoutPlayer({
                       {item.isAdHoc && (
                         <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>
                       )}
+                      {swap && (
+                        <Badge variant="secondary" className="text-xs shrink-0">Swapped</Badge>
+                      )}
                       {item.blockType === "conditioning" && (
                         <Badge variant="secondary" className="text-xs shrink-0">Conditioning</Badge>
                       )}
-                      <h2 className="text-lg font-bold">{item.exercise.name}</h2>
-                      <VideoPreviewButton exercise={item.exercise} />
+                      <h2 className="text-lg font-bold">{displayExercise.name}</h2>
+                      <VideoPreviewButton exercise={displayExercise} />
+                      {!item.isAdHoc && (
+                        <button
+                          type="button"
+                          onClick={() => swap ? undoSwap(item.id) : openExercisePicker("swap", item.id)}
+                          className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors shrink-0"
+                          title={swap ? "Undo swap" : "Swap exercise"}
+                        >
+                          <Repeat className="h-3.5 w-3.5" />
+                          {swap ? "Undo" : "Swap"}
+                        </button>
+                      )}
                     </div>
+                    {swap && (
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        Subbed in for <span className="italic">{item.exercise.name}</span>
+                      </p>
+                    )}
                     {item.blockType === "conditioning" ? (
                       <p className="text-sm text-muted-foreground mt-1">
                         {conditioningSummary({ sets: item.sets, reps: item.reps, work_seconds: item.workSeconds, rest_seconds: item.restSeconds, intensity: item.intensity })}
@@ -496,14 +612,31 @@ export function WorkoutPlayer({
                       <p className="text-xs text-muted-foreground/70 mt-1 italic">{item.notes}</p>
                     )}
                   </div>
-                  {item.exercise.muscle_groups?.length > 0 && (
+                  {displayExercise.muscle_groups?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {item.exercise.muscle_groups.map((m) => (
+                      {displayExercise.muscle_groups.map((m) => (
                         <span key={m} className="text-xs text-muted-foreground">{m}</span>
                       ))}
                     </div>
                   )}
                 </div>
+
+                {/* Last time — what they lifted for this exercise most recently */}
+                {lastSets.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap rounded-lg bg-secondary/40 px-3 py-2">
+                    <span className="text-xs font-medium text-muted-foreground shrink-0">Last time</span>
+                    {mostRecent && (
+                      <span className="text-xs text-muted-foreground/70 shrink-0">({formatDate(mostRecent.started_at, timezone)})</span>
+                    )}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {lastSets.map((sl) => (
+                        <span key={sl.set_number} className="text-xs font-medium tabular-nums rounded bg-background border border-border px-1.5 py-0.5">
+                          {sl.weight_kg ? `${sl.weight_kg}kg` : "BW"} × {sl.reps_completed ?? "—"}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {item.blockType === "conditioning" ? (
                   /* Conditioning: single Done for the whole block */
@@ -512,29 +645,26 @@ export function WorkoutPlayer({
                     variant={entries[0]?.completed ? "default" : "outline"}
                     className="w-full h-12"
                     disabled={entries[0]?.completed}
-                    onClick={() => !entries[0]?.completed && completeSet(
-                      item.id, item.exercise.id, item.exercise.name, 0, item.restSeconds, item.isAdHoc,
-                    )}
+                    onClick={() => !entries[0]?.completed && markConditioningDone(item.id)}
                   >
                     <Check className="h-5 w-5 mr-2" />
                     {entries[0]?.completed ? "Done" : "Mark done"}
                   </Button>
                 ) : (
-                /* Sets */
+                /* Sets — auto-saved when you move to the next exercise */
                 <div className="space-y-2">
-                  <div className="grid grid-cols-[2rem_1fr_1fr_2.5rem_2rem] gap-2 px-1">
+                  <div className="grid grid-cols-[2rem_1fr_1fr_2rem] gap-2 px-1">
                     <span className="text-xs text-muted-foreground text-center">Set</span>
-                    <span className="text-xs text-muted-foreground text-center">Weight (kg)</span>
                     <span className="text-xs text-muted-foreground text-center">Reps</span>
-                    <span />
+                    <span className="text-xs text-muted-foreground text-center">Weight (kg)</span>
                     <span />
                   </div>
                   {entries.map((entry, i) => (
                     <div
                       key={i}
                       className={cn(
-                        "grid grid-cols-[2rem_1fr_1fr_2.5rem_2rem] gap-2 items-center rounded-lg px-1 py-1.5 transition-colors",
-                        entry.completed ? "bg-primary/10" : "bg-secondary/40"
+                        "grid grid-cols-[2rem_1fr_1fr_2rem] gap-2 items-center rounded-lg px-1 py-1.5 transition-colors",
+                        isDone(entry) ? "bg-primary/10" : "bg-secondary/40"
                       )}
                     >
                       <div className="flex items-center justify-center">
@@ -545,56 +675,50 @@ export function WorkoutPlayer({
                         )}
                       </div>
                       <Input
-                        type="number" inputMode="decimal" step="0.5" placeholder="0"
-                        value={entry.weight}
-                        onChange={(e) => updateSet(item.id, i, "weight", e.target.value)}
-                        disabled={entry.completed} className="h-10 text-center text-base"
-                      />
-                      <Input
                         type="number" inputMode="numeric" placeholder="0"
                         value={entry.reps}
                         onChange={(e) => updateSet(item.id, i, "reps", e.target.value)}
-                        disabled={entry.completed} className="h-10 text-center text-base"
+                        className="h-10 text-center text-base"
                       />
-                      <Button
-                        size="sm" variant={entry.completed ? "default" : "outline"}
-                        className="h-10 w-10 p-0"
-                        onClick={() => !entry.completed && completeSet(
-                          item.id,
-                          item.exercise.id,
-                          item.exercise.name,
-                          i,
-                          item.restSeconds,
-                          item.isAdHoc,
-                        )}
-                        disabled={entry.completed}
+                      <Input
+                        type="number" inputMode="decimal" step="0.5" placeholder="0"
+                        value={entry.weight}
+                        onChange={(e) => updateSet(item.id, i, "weight", e.target.value)}
+                        className="h-10 text-center text-base"
+                      />
+                      <button
+                        type="button"
+                        className="flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={() => removeSet(item.id)}
+                        title="Remove set"
                       >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      {!entry.completed && (
-                        <button
-                          type="button"
-                          className="flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-destructive transition-colors"
-                          onClick={() => removeSet(item.id)}
-                          title="Remove set"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-                      )}
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => addSet(item.id)}
-                    className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add set
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => addSet(item.id)}
+                      className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add set
+                    </button>
+                    {item.restSeconds > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setRestSeconds(item.restSeconds); setShowRest(true); }}
+                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                      >
+                        <Timer className="h-3.5 w-3.5" /> Rest {item.restSeconds}s
+                      </button>
+                    )}
+                  </div>
                 </div>
                 )}
 
-                {/* History (program strength exercises only) */}
-                {!item.isAdHoc && item.blockType !== "conditioning" && (
+                {/* History (program strength exercises only; hidden once swapped) */}
+                {!item.isAdHoc && !swap && item.blockType !== "conditioning" && (
                   <SessionHistory weId={item.id} sessions={previousSessions} timezone={timezone} />
                 )}
 
@@ -626,48 +750,26 @@ export function WorkoutPlayer({
 
         {/* Footer navigation */}
         <div className="px-4 pb-safe-bottom pt-3 border-t border-border space-y-2">
-          {showRestButton && (
-            <button
-              type="button"
-              onClick={() => { setShowRestButton(false); setShowRest(true); }}
-              className="flex items-center justify-between w-full rounded-lg bg-primary/10 border border-primary/20 px-4 py-2.5 hover:bg-primary/15 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Timer className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-primary">Rest {restSeconds}s</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Tap to start</span>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setShowRestButton(false); }}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </button>
-          )}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="flex-1"
-              disabled={currentExIdx === 0} onClick={() => setCurrentExIdx((i) => i - 1)}>
+              disabled={currentExIdx === 0} onClick={() => goTo(currentExIdx - 1)}>
               <ChevronLeft className="h-4 w-4 mr-1" /> Prev
             </Button>
             {currentExIdx < totalPages - 1 ? (
-              <Button size="sm" className="flex-1" onClick={() => setCurrentExIdx((i) => i + 1)}>
+              <Button size="sm" className="flex-1" onClick={() => goTo(currentExIdx + 1)}>
                 Next <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (
-              <Button size="sm" className="flex-1 bg-primary" onClick={() => setShowFinish(true)}>
+              <Button size="sm" className="flex-1 bg-primary" onClick={() => { saveCurrentPage(); setShowFinish(true); }}>
                 Finish workout
               </Button>
             )}
           </div>
           <div className="flex items-center justify-center gap-1.5 flex-wrap">
             {pages.map((page, i) => {
-              const complete = page.every((it) => (sets[it.id]?.length ?? 0) > 0 && sets[it.id]!.every((s) => s.completed));
+              const complete = page.every((it) => (sets[it.id]?.length ?? 0) > 0 && sets[it.id]!.every(isDone));
               return (
-                <button key={i} onClick={() => setCurrentExIdx(i)}
+                <button key={i} onClick={() => goTo(i)}
                   className={cn("rounded-full transition-all", i === currentExIdx
                     ? "w-4 h-2 bg-primary"
                     : complete
@@ -680,7 +782,7 @@ export function WorkoutPlayer({
           </div>
           <button
             type="button"
-            onClick={openExercisePicker}
+            onClick={() => openExercisePicker("add")}
             className="flex items-center justify-center gap-1.5 w-full py-2 text-xs text-muted-foreground hover:text-primary transition-colors"
           >
             <Plus className="h-3.5 w-3.5" /> Add exercise
@@ -728,7 +830,7 @@ export function WorkoutPlayer({
       <Dialog open={showExPicker} onOpenChange={setShowExPicker}>
         <DialogContent className="max-h-[80vh] flex flex-col p-0">
           <div className="px-4 pt-4 pb-2 border-b border-border">
-            <h2 className="text-base font-bold mb-3">Add exercise</h2>
+            <h2 className="text-base font-bold mb-3">{pickerMode === "swap" ? "Swap exercise" : "Add exercise"}</h2>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input

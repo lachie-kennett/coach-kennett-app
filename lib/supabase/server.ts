@@ -51,10 +51,18 @@ export async function getSessionUser(): Promise<User | null> {
 }
 
 // Writes the session object to cookies in the same format createBrowserClient expects.
+// A long maxAge makes these persistent cookies so people stay logged in across
+// app restarts (instead of being kicked out every time the browser/PWA closes).
 export async function setSessionCookie(session: object) {
   const store = await cookies();
   const value = JSON.stringify(session);
-  const opts = { path: "/", secure: true, sameSite: "lax" as const, httpOnly: false };
+  const opts = {
+    path: "/",
+    secure: true,
+    sameSite: "lax" as const,
+    httpOnly: false,
+    maxAge: 60 * 60 * 24 * 400, // ~400 days (browser max)
+  };
 
   if (value.length <= CHUNK_SIZE) {
     store.set(SESSION_COOKIE, value, opts);

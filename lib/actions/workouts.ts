@@ -91,6 +91,99 @@ export async function logSet(params: {
   return { isPR };
 }
 
+// Saves every set on a "page" (a single exercise or a superset) in one go.
+// Called when the athlete moves to the next/previous exercise instead of ticking
+// each set. Idempotent: existing set_logs for these exercises in this session are
+// cleared first, so navigating back and forth never duplicates rows.
+export async function savePageSets(params: {
+  workoutLogId: string;
+  forClientId?: string;
+  entries: {
+    workoutExerciseId: string | null;
+    sessionExerciseId: string | null;
+    exerciseId: string;
+    keepEmpty?: boolean; // conditioning "done" — keep a row even with no reps/weight
+    sets: { setNumber: number; repsCompleted: number | null; weightKg: number | null }[];
+  }[];
+}): Promise<{ prExerciseIds: string[] }> {
+  const user = await getSessionUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const admin = createAdminClient();
+  const clientId = params.forClientId ?? user.id;
+  const prExerciseIds: string[] = [];
+
+  for (const entry of params.entries) {
+    // Clear existing logs for this exercise in this session so re-saving is idempotent.
+    let del = admin.from("set_logs").delete().eq("workout_log_id", params.workoutLogId);
+    del = entry.workoutExerciseId
+      ? del.eq("workout_exercise_id", entry.workoutExerciseId)
+      : del.eq("session_exercise_id" as never, entry.sessionExerciseId as string);
+    await del;
+
+    const rows = entry.keepEmpty
+      ? entry.sets
+      : entry.sets.filter((s) => s.repsCompleted != null || s.weightKg != null);
+    if (rows.length === 0) continue;
+
+    // Find the best set (max weight, then reps) to check for a PR.
+    let best: { setNumber: number; weightKg: number; reps: number } | null = null;
+    for (const s of rows) {
+      if (s.weightKg != null && s.repsCompleted != null) {
+        if (!best || s.weightKg > best.weightKg || (s.weightKg === best.weightKg && s.repsCompleted > best.reps)) {
+          best = { setNumber: s.setNumber, weightKg: s.weightKg, reps: s.repsCompleted };
+        }
+      }
+    }
+
+    let isPR = false;
+    if (best) {
+      const { data: existing } = await admin
+        .from("personal_records")
+        .select("weight_kg, reps")
+        .eq("client_id", clientId)
+        .eq("exercise_id", entry.exerciseId)
+        .single();
+      isPR = !existing ||
+        best.weightKg > (existing.weight_kg as number) ||
+        (best.weightKg === (existing.weight_kg as number) && best.reps > (existing.reps as number));
+    }
+
+    const { data: inserted, error } = await admin
+      .from("set_logs")
+      .insert(
+        rows.map((s) => ({
+          workout_log_id: params.workoutLogId,
+          workout_exercise_id: entry.workoutExerciseId ?? null,
+          session_exercise_id: entry.sessionExerciseId ?? null,
+          set_number: s.setNumber,
+          reps_completed: s.repsCompleted,
+          weight_kg: s.weightKg,
+          is_pr: isPR && best != null && s.setNumber === best.setNumber,
+        })) as never
+      )
+      .select("id, set_number");
+
+    if (error) throw new Error(error.message);
+
+    if (isPR && best) {
+      const prRow = (inserted as { id: string; set_number: number }[] | null)?.find(
+        (r) => r.set_number === best!.setNumber
+      );
+      await admin.from("personal_records").upsert({
+        client_id: clientId,
+        exercise_id: entry.exerciseId,
+        weight_kg: best.weightKg,
+        reps: best.reps,
+        set_log_id: prRow?.id ?? null,
+      } as never, { onConflict: "client_id,exercise_id" });
+      prExerciseIds.push(entry.exerciseId);
+    }
+  }
+
+  return { prExerciseIds };
+}
+
 export async function saveExerciseLog(params: {
   workoutLogId: string;
   workoutExerciseId: string;
