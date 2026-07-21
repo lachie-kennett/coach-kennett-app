@@ -77,6 +77,7 @@ export type Database = {
         Row: {
           id: string;
           coach_id: string;
+          client_id: string | null;
           name: string;
           description: string | null;
           created_at: string;
@@ -85,12 +86,14 @@ export type Database = {
         Insert: {
           id?: string;
           coach_id: string;
+          client_id?: string | null;
           name: string;
           description?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
+          client_id?: string | null;
           name?: string;
           description?: string | null;
           updated_at?: string;

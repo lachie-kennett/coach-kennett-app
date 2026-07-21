@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { AssignProgramDialog } from "@/components/clients/assign-program-dialog";
 import { ArchiveClientButton } from "@/components/clients/archive-client-button";
+import { CopyFromClientDialog } from "@/components/programs/copy-from-client-dialog";
 import { ArrowLeft, ArrowRight, Trophy, BookOpen, Clock, Plus } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,35 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const pastPrograms = assignments?.filter(a => !a.is_active) ?? [];
   const timezone = await getUserTimezone();
 
+  // Other clients + their programs, so the coach can copy an existing program in.
+  const { data: otherClientsData } = await admin
+    .from("profiles")
+    .select("id, full_name, email")
+    .eq("coach_id", user.id)
+    .eq("archived", false)
+    .neq("id", id)
+    .order("full_name");
+  const otherClients = (otherClientsData ?? []) as { id: string; full_name: string | null; email: string }[];
+  const otherIds = otherClients.map((c) => c.id);
+
+  const programsByClient = new Map<string, { id: string; name: string }[]>();
+  if (otherIds.length > 0) {
+    const { data: srcProgramsData } = await admin
+      .from("programs")
+      .select("id, name, client_id")
+      .eq("coach_id", user.id)
+      .in("client_id", otherIds)
+      .order("created_at", { ascending: false });
+    for (const p of (srcProgramsData ?? []) as { id: string; name: string; client_id: string }[]) {
+      const list = programsByClient.get(p.client_id) ?? [];
+      list.push({ id: p.id, name: p.name });
+      programsByClient.set(p.client_id, list);
+    }
+  }
+  const copySources = otherClients
+    .map((c) => ({ id: c.id, name: c.full_name ?? c.email, programs: programsByClient.get(c.id) ?? [] }))
+    .filter((c) => c.programs.length > 0);
+
   return (
     <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-6">
       <div className="flex items-center gap-3">
@@ -129,13 +159,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           <CardTitle className="text-base flex items-center gap-2">
             <BookOpen className="h-4 w-4" /> Current Program
           </CardTitle>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Link
               href={`/programs/new?clientId=${id}`}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
               <Plus className="mr-1 h-4 w-4" /> New
             </Link>
+            <CopyFromClientDialog targetClientId={id} sources={copySources} />
             <AssignProgramDialog clientId={id} coachId={user.id} programs={programs ?? []} />
           </div>
         </CardHeader>
