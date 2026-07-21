@@ -3,10 +3,9 @@ import Link from "next/link";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ArrowRight, UserPlus } from "lucide-react";
 import { AddClientDialog } from "@/components/clients/add-client-dialog";
-import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
 export default async function ClientsPage() {
@@ -20,11 +19,13 @@ export default async function ClientsPage() {
 
   const { data: clientsData } = await admin
     .from("profiles")
-    .select("id, full_name, email, created_at")
+    .select("id, full_name, email, created_at, archived")
     .eq("coach_id", user.id)
     .order("full_name");
 
-  const clients = clientsData as Pick<Profile, "id" | "full_name" | "email" | "created_at">[] | null;
+  const allClients = clientsData as Pick<Profile, "id" | "full_name" | "email" | "created_at" | "archived">[] | null;
+  const clients = allClients?.filter((c) => !c.archived) ?? [];
+  const archivedClients = allClients?.filter((c) => c.archived) ?? [];
 
   // Fetch last_sign_in_at for each client from auth.users
   const lastSeenMap = new Map<string, string | null>();
@@ -52,12 +53,14 @@ export default async function ClientsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Clients</h1>
-          <p className="text-sm text-muted-foreground mt-1">{clients?.length ?? 0} total</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {clients.length} active{archivedClients.length > 0 ? ` · ${archivedClients.length} archived` : ""}
+          </p>
         </div>
         <AddClientDialog />
       </div>
 
-      {clients && clients.length > 0 ? (
+      {clients.length > 0 ? (
         <div className="space-y-2">
           {clients.map((client) => (
             <Link key={client.id} href={`/clients/${client.id}`}>
@@ -83,13 +86,39 @@ export default async function ClientsPage() {
             </Link>
           ))}
         </div>
-      ) : (
+      ) : archivedClients.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <UserPlus className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">No clients yet. Add your first client to get started.</p>
           </CardContent>
         </Card>
+      ) : null}
+
+      {archivedClients.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-muted-foreground pt-2">
+            Archived ({archivedClients.length})
+          </h2>
+          {archivedClients.map((client) => (
+            <Link key={client.id} href={`/clients/${client.id}`}>
+              <Card className="opacity-60 hover:opacity-100 hover:bg-secondary/30 transition-all cursor-pointer">
+                <CardContent className="flex items-center justify-between py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
+                      {(client.full_name ?? client.email)[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-medium">{client.full_name ?? "Unnamed"}</p>
+                      <p className="text-sm text-muted-foreground">{client.email}</p>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="shrink-0">Archived</Badge>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
       )}
     </div>
   );

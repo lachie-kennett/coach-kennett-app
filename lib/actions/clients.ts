@@ -76,6 +76,39 @@ export async function addClient(
   return { success: true, password, emailed };
 }
 
+// Archive (or restore) a client. Archiving keeps their account and all their
+// data, but the app gate (see the (app) layout) immediately blocks their access
+// so they can no longer see their program. Restoring re-enables access.
+export async function setClientArchived(
+  clientId: string,
+  archived: boolean
+): Promise<{ error?: string; success?: boolean }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "coach") return { error: "Not authorized" };
+
+  // Only allow archiving your own clients.
+  const { data: client } = await admin
+    .from("profiles")
+    .select("id, coach_id")
+    .eq("id", clientId)
+    .single();
+  if (!client || (client as { coach_id: string | null }).coach_id !== user.id) {
+    return { error: "Not your client" };
+  }
+
+  const { error } = await admin
+    .from("profiles")
+    .update({ archived })
+    .eq("id", clientId);
+  if (error) return { error: error.message };
+
+  return { success: true };
+}
+
 export async function importClients(rows: ImportRow[]): Promise<ImportResult[]> {
   const user = await getSessionUser();
   if (!user) throw new Error("Not authenticated");

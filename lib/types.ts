@@ -13,6 +13,7 @@ export interface Profile {
   role: UserRole;
   coach_id: string | null;
   habit_tracker_url: string | null;
+  archived: boolean;
   created_at: string;
   updated_at: string;
 }

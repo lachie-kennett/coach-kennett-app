@@ -136,6 +136,7 @@ export default async function LeaderboardPage() {
     .from("profiles")
     .select("id, full_name, email, avatar_url")
     .eq("coach_id", coachId)
+    .eq("archived", false)
     .order("full_name");
 
   const clients = (clientsData ?? []) as ClientRow[];

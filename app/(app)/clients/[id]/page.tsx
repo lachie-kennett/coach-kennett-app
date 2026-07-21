@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { AssignProgramDialog } from "@/components/clients/assign-program-dialog";
+import { ArchiveClientButton } from "@/components/clients/archive-client-button";
 import { ArrowLeft, ArrowRight, Trophy, BookOpen, Clock, Plus } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -99,11 +100,28 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         <Link href="/clients" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div>
-          <h1 className="text-xl font-bold">{client.full_name ?? "Unnamed"}</h1>
-          <p className="text-sm text-muted-foreground">{client.email}</p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold truncate">{client.full_name ?? "Unnamed"}</h1>
+            {client.archived && <Badge variant="secondary" className="shrink-0">Archived</Badge>}
+          </div>
+          <p className="text-sm text-muted-foreground truncate">{client.email}</p>
         </div>
+        <ArchiveClientButton
+          clientId={client.id}
+          name={client.full_name ?? "this client"}
+          archived={client.archived}
+        />
       </div>
+
+      {client.archived && (
+        <Card className="border-amber-500/40 bg-amber-500/10">
+          <CardContent className="py-3 text-sm text-amber-700 dark:text-amber-300">
+            This client is archived — they can&rsquo;t access the app. Their account, programs and
+            history are all kept. Restore them to give access back.
+          </CardContent>
+        </Card>
+      )}
 
       {/* Current Program */}
       <Card>

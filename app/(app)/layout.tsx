@@ -21,6 +21,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!profile) redirect("/login");
 
+  // Archived clients keep their account and all data, but lose access to the app
+  // immediately — every request bounces them to the paused screen.
+  if (profile.archived && profile.role !== "coach") {
+    redirect("/paused");
+  }
+
   const isCoach = profile.role === "coach";
 
   return (

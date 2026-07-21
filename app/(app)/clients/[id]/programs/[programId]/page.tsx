@@ -9,6 +9,7 @@ import { ArrowLeft, Dumbbell, Pencil, Play, Clock } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { ProgramLengthEditor } from "@/components/programs/program-length-editor";
 import { SaveAsTemplateButton } from "@/components/programs/save-as-template-button";
+import { CopyProgramDialog } from "@/components/programs/copy-program-dialog";
 import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +54,7 @@ export default async function ClientProgramPage({
     .single();
   if (coachData?.role !== "coach") redirect("/home");
 
-  const [{ data: clientData }, { data: assignmentData }, { data: workoutsData }] =
+  const [{ data: clientData }, { data: assignmentData }, { data: workoutsData }, { data: otherClientsData }] =
     await Promise.all([
       admin
         .from("profiles")
@@ -78,9 +79,19 @@ export default async function ClientProgramPage({
         `)
         .eq("program_id", programId)
         .order("day_order"),
+      admin
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("coach_id", user.id)
+        .eq("archived", false)
+        .neq("id", clientId)
+        .order("full_name"),
     ]);
 
   if (!clientData || !assignmentData) notFound();
+
+  const otherClients = ((otherClientsData ?? []) as { id: string; full_name: string | null; email: string }[])
+    .map((c) => ({ id: c.id, name: c.full_name ?? c.email }));
 
   type AssignmentData = {
     id: string;
@@ -116,6 +127,11 @@ export default async function ClientProgramPage({
             {assignment.is_active ? "Active" : "Past"}
           </Badge>
           <SaveAsTemplateButton programId={programId} />
+          <CopyProgramDialog
+            sourceProgramId={programId}
+            programName={assignment.programs?.name ?? "Program"}
+            clients={otherClients}
+          />
           <Link
             href={`/programs/${programId}?clientId=${clientId}`}
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}

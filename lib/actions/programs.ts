@@ -204,6 +204,55 @@ export async function assignTemplate(params: {
   return {};
 }
 
+// Copies an existing (client) program to another client — deep-copies it into a
+// new independent program for the target client and assigns it, so edits to one
+// client's copy never affect the other's.
+export async function copyProgramToClient(params: {
+  sourceProgramId: string;
+  clientId: string;
+  startDate: string;
+  endDate: string | null;
+}): Promise<{ error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+
+  const { data: src } = await admin
+    .from("programs")
+    .select("coach_id, name, description")
+    .eq("id", params.sourceProgramId)
+    .single();
+  const s = src as { coach_id: string; name: string; description: string | null } | null;
+  if (!s || s.coach_id !== user.id) return { error: "Not authorized" };
+
+  const { data: client } = await admin
+    .from("profiles")
+    .select("coach_id")
+    .eq("id", params.clientId)
+    .single();
+  if ((client as { coach_id: string } | null)?.coach_id !== user.id) return { error: "Not authorized" };
+
+  const newId = await deepCopyProgram(admin, params.sourceProgramId, {
+    coachId: user.id,
+    clientId: params.clientId,
+    name: s.name,
+    description: s.description,
+  });
+  if (!newId) return { error: "Failed to copy program" };
+
+  const { error } = await admin.from("client_programs").insert({
+    client_id: params.clientId,
+    program_id: newId,
+    start_date: params.startDate,
+    end_date: params.endDate,
+    assigned_by: user.id,
+    is_active: true,
+  } as never);
+  if (error) return { error: error.message };
+  revalidatePath(`/clients/${params.clientId}`);
+  return {};
+}
+
 // Updates the start/end dates (i.e. the length) of a client's program assignment.
 export async function updateAssignmentDates(params: {
   clientId: string;

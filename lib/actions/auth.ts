@@ -6,6 +6,7 @@ import {
   setSessionCookie,
   clearSessionCookie,
 } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -23,6 +24,20 @@ export async function signIn(email: string, password: string) {
     const data = await res.json();
     if (!res.ok) {
       return { error: data.error_description ?? data.message ?? "Invalid email or password" };
+    }
+
+    // Block archived (paused) clients from getting a session at all.
+    const userId = data.user?.id as string | undefined;
+    if (userId) {
+      const admin = createAdminClient();
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("role, archived")
+        .eq("id", userId)
+        .single();
+      if (profile?.archived && profile.role !== "coach") {
+        return { error: "Your access has been paused. Please contact your coach." };
+      }
     }
 
     await setSessionCookie(data);
