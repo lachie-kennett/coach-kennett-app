@@ -342,3 +342,20 @@ create policy "Coaches manage their session template exercises" on session_templ
       where st.id = session_template_exercises.session_template_id and st.coach_id = auth.uid()
     )
   );
+
+-- Per-week overrides for a conditioning exercise, so conditioning can be
+-- progressed week by week. When a workout_exercise has rows here, the athlete
+-- sees the row for their current program week (holding the last defined week
+-- thereafter); with no rows, the base workout_exercise prescription is used.
+create table if not exists conditioning_weeks (
+  id uuid primary key default gen_random_uuid(),
+  workout_exercise_id uuid not null references workout_exercises(id) on delete cascade,
+  week_number int not null,
+  sets int not null default 1,
+  reps text not null default '',
+  work_seconds int,
+  rest_seconds int not null default 0,
+  intensity text,
+  unique (workout_exercise_id, week_number)
+);
+create index if not exists conditioning_weeks_we_idx on conditioning_weeks (workout_exercise_id);

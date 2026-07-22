@@ -34,7 +34,8 @@ import {
   addSessionTemplateToProgram,
 } from "@/lib/actions/programs";
 import { NewExerciseDialog } from "@/components/exercises/new-exercise-dialog";
-import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
+import { conditioningSummary, conditioningTotalSeconds, formatSessionTime, type ConditioningWeek } from "@/lib/workout-format";
+import { ConditioningWeeksDialog } from "@/components/programs/conditioning-weeks-dialog";
 import { EditExerciseDialog } from "@/components/programs/edit-exercise-dialog";
 import { SESSION_TYPES } from "@/lib/session-types";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
@@ -72,6 +73,7 @@ interface WorkoutExercise {
   superset_group: string | null;
   notes: string | null;
   exercises: Exercise;
+  conditioning_weeks?: ConditioningWeek[];
 }
 
 interface Workout {
@@ -396,6 +398,17 @@ function SortableExerciseRow({
             : <>{we.sets} × {we.reps}{we.weight_kg ? ` @ ${we.weight_kg}kg` : ""}{we.rest_seconds > 0 ? ` · ${we.rest_seconds}s rest` : ""}</>}
         </p>
       </div>
+      {we.block_type === "conditioning" && (
+        <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+          <ConditioningWeeksDialog
+            workoutExerciseId={we.id}
+            exerciseName={we.exercises?.name ?? "Conditioning"}
+            base={{ sets: we.sets, reps: we.reps, work_seconds: we.work_seconds, rest_seconds: we.rest_seconds, intensity: we.intensity }}
+            weeks={we.conditioning_weeks ?? []}
+            onSaved={() => {}}
+          />
+        </span>
+      )}
       <Button
         size="sm"
         variant="ghost"

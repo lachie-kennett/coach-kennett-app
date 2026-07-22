@@ -106,12 +106,30 @@ async function deepCopyProgram(
 
     const { data: wes } = await admin
       .from("workout_exercises")
-      .select("exercise_id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, order_index, superset_group, notes")
+      .select("id, exercise_id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, order_index, superset_group, notes")
       .eq("workout_id", w.id);
-    const rows = ((wes ?? []) as Array<Record<string, unknown>>).map((we) => ({ ...we, workout_id: newWorkoutId }));
-    if (rows.length > 0) {
-      const { error: eErr } = await admin.from("workout_exercises").insert(rows as never);
-      if (eErr) return null;
+    for (const we of (wes ?? []) as Array<Record<string, unknown> & { id: string; block_type: string }>) {
+      const { id: srcWeId, ...rest } = we;
+      const { data: newWe, error: eErr } = await admin
+        .from("workout_exercises")
+        .insert({ ...rest, workout_id: newWorkoutId } as never)
+        .select("id")
+        .single();
+      if (eErr || !newWe) return null;
+      const newWeId = (newWe as { id: string }).id;
+
+      // Carry over any per-week conditioning progression.
+      if (we.block_type === "conditioning") {
+        const { data: cw } = await admin
+          .from("conditioning_weeks")
+          .select("week_number, sets, reps, work_seconds, rest_seconds, intensity")
+          .eq("workout_exercise_id", srcWeId);
+        if (cw && cw.length > 0) {
+          await admin.from("conditioning_weeks").insert(
+            (cw as Array<Record<string, unknown>>).map((x) => ({ ...x, workout_exercise_id: newWeId })) as never
+          );
+        }
+      }
     }
   }
   return newProgramId;
@@ -518,6 +536,46 @@ async function ownedWorkoutExercise(
   const workoutId = (data as { workout_id: string } | null)?.workout_id;
   if (!workoutId) return null;
   return ownedProgramForWorkout(admin, workoutId, userId);
+}
+
+// Replaces the per-week progression for a conditioning exercise. Passing an
+// empty array clears it (back to a single, non-progressed prescription).
+export async function saveConditioningWeeks(params: {
+  workoutExerciseId: string;
+  weeks: {
+    weekNumber: number;
+    sets: number;
+    reps: string;
+    workSeconds: number | null;
+    restSeconds: number;
+    intensity: string | null;
+  }[];
+}): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const programId = await ownedWorkoutExercise(admin, params.workoutExerciseId, user.id);
+  if (!programId) return { error: "Not authorized" };
+
+  await admin.from("conditioning_weeks").delete().eq("workout_exercise_id", params.workoutExerciseId);
+
+  if (params.weeks.length > 0) {
+    const { error } = await admin.from("conditioning_weeks").insert(
+      params.weeks.map((w) => ({
+        workout_exercise_id: params.workoutExerciseId,
+        week_number: w.weekNumber,
+        sets: w.sets,
+        reps: w.reps,
+        work_seconds: w.workSeconds,
+        rest_seconds: w.restSeconds,
+        intensity: w.intensity,
+      })) as never
+    );
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath(`/programs/${programId}`);
+  return {};
 }
 
 export async function deleteWorkoutExercise(workoutExerciseId: string): Promise<ActionResult> {

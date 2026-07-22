@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, Clock, Play } from "lucide-react";
 import { VideoPreviewButton } from "@/components/workouts/video-preview-button";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
-import { conditioningSummary } from "@/lib/workout-format";
+import { conditioningSummary, currentProgramWeek, resolveConditioningWeek, type ConditioningWeek } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
 
 export default async function WorkoutDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,10 +19,11 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
   const { data: workoutData } = await admin
     .from("program_workouts")
     .select(`
-      id, name, session_type,
+      id, name, session_type, program_id,
       workout_exercises (
         id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, notes, order_index,
-        exercises (id, name, description, youtube_url, muscle_groups)
+        exercises (id, name, description, youtube_url, muscle_groups),
+        conditioning_weeks (week_number, sets, reps, work_seconds, rest_seconds, intensity)
       )
     `)
     .eq("id", id)
@@ -36,10 +37,32 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
     superset_group: string | null; notes: string | null;
     order_index: number;
     exercises: { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] } | null;
+    conditioning_weeks?: ConditioningWeek[];
   };
 
-  const workout = workoutData as { id: string; name: string; session_type: string | null; workout_exercises: WeRow[] };
-  const sorted = [...workout.workout_exercises].sort((a, b) => a.order_index - b.order_index);
+  const workout = workoutData as { id: string; name: string; session_type: string | null; program_id: string; workout_exercises: WeRow[] };
+
+  // Resolve conditioning to the viewer's current program week.
+  const { data: assignData } = await admin
+    .from("client_programs")
+    .select("start_date, is_active")
+    .eq("client_id", user.id)
+    .eq("program_id", workout.program_id)
+    .order("is_active", { ascending: false })
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const week = currentProgramWeek((assignData as { start_date: string } | null)?.start_date ?? null);
+
+  const sorted = [...workout.workout_exercises]
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((we) => {
+      if (we.block_type === "conditioning" && we.conditioning_weeks && we.conditioning_weeks.length > 0) {
+        const r = resolveConditioningWeek(we.conditioning_weeks, we, week);
+        return { ...we, sets: r.sets, reps: r.reps, work_seconds: r.work_seconds, rest_seconds: r.rest_seconds, intensity: r.intensity };
+      }
+      return we;
+    });
 
   const totalSets = sorted.reduce((sum, we) => sum + we.sets, 0);
   const estimatedMinutes = sorted.reduce((sum, we) => sum + (we.sets * (30 + we.rest_seconds)), 0) / 60;

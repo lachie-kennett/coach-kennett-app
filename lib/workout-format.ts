@@ -32,6 +32,50 @@ export function formatSessionTime(seconds: number): string {
   return `${Math.round(seconds / 60)} min`;
 }
 
+export type ConditioningWeek = {
+  week_number: number;
+  sets: number;
+  reps: string;
+  work_seconds: number | null;
+  rest_seconds: number;
+  intensity: string | null;
+};
+
+// The program week a client is currently in (1-based), from the assignment's
+// start date. Before the start date (or with none) it's week 1.
+export function currentProgramWeek(startDate: string | null | undefined): number {
+  if (!startDate) return 1;
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor((now.getTime() - start.getTime()) / 86400000);
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+// Picks the conditioning prescription for the given week: the defined week with
+// the largest week_number ≤ currentWeek (so it holds the final week afterwards).
+// Falls back to the base prescription when no weeks are defined.
+export function resolveConditioningWeek(
+  weeks: ConditioningWeek[] | null | undefined,
+  base: ConditioningLike,
+  currentWeek: number
+): ConditioningLike {
+  if (!weeks || weeks.length === 0) return base;
+  const sorted = [...weeks].sort((a, b) => a.week_number - b.week_number);
+  let chosen = sorted[0];
+  for (const w of sorted) {
+    if (w.week_number <= currentWeek) chosen = w;
+  }
+  return {
+    sets: chosen.sets,
+    reps: chosen.reps,
+    work_seconds: chosen.work_seconds,
+    rest_seconds: chosen.rest_seconds,
+    intensity: chosen.intensity,
+  };
+}
+
 // Builds the one-line prescription for a conditioning block, e.g.
 // "3 × 400m · 3:00 work · 1:00 rest · Zone 2".
 export function conditioningSummary(w: ConditioningLike): string {
