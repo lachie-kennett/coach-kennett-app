@@ -15,6 +15,8 @@ export default async function RedirectPage() {
 
   if (profile?.role === "coach") {
     redirect("/dashboard");
+  } else if (profile?.role === "assistant") {
+    redirect("/clients");
   } else {
     redirect("/home");
   }

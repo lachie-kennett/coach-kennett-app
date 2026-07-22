@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NewProgramForm } from "@/components/programs/new-program-form";
+import { getCoachContext, canAccessClient } from "@/lib/coach-context";
 
 export default async function NewProgramPage({
   searchParams,
@@ -12,10 +13,15 @@ export default async function NewProgramPage({
   if (!user) redirect("/login");
 
   const admin = createAdminClient();
-  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "coach") redirect("/home");
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) redirect("/home");
 
   const { clientId } = await searchParams;
+
+  // Assistants can only build for their assigned clients (no standalone templates).
+  if (ctx.isAssistant && (!clientId || !canAccessClient(ctx, clientId))) {
+    redirect("/clients");
+  }
 
   let clientName: string | null = null;
   if (clientId) {

@@ -11,7 +11,7 @@ export type Database = {
           email: string;
           full_name: string | null;
           avatar_url: string | null;
-          role: "coach" | "client";
+          role: "coach" | "client" | "assistant";
           coach_id: string | null;
           habit_tracker_url: string | null;
           archived: boolean;
@@ -23,7 +23,7 @@ export type Database = {
           email: string;
           full_name?: string | null;
           avatar_url?: string | null;
-          role?: "coach" | "client";
+          role?: "coach" | "client" | "assistant";
           coach_id?: string | null;
           habit_tracker_url?: string | null;
           archived?: boolean;
@@ -35,7 +35,7 @@ export type Database = {
           email?: string;
           full_name?: string | null;
           avatar_url?: string | null;
-          role?: "coach" | "client";
+          role?: "coach" | "client" | "assistant";
           coach_id?: string | null;
           habit_tracker_url?: string | null;
           archived?: boolean;
@@ -280,7 +280,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: Record<string, never>;
     Enums: {
-      user_role: "coach" | "client";
+      user_role: "coach" | "client" | "assistant";
     };
     CompositeTypes: Record<string, never>;
   };

@@ -11,6 +11,7 @@ import { ProgramLengthEditor } from "@/components/programs/program-length-editor
 import { SaveAsTemplateButton } from "@/components/programs/save-as-template-button";
 import { CopyProgramDialog } from "@/components/programs/copy-program-dialog";
 import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
+import { getCoachContext, canAccessClient } from "@/lib/coach-context";
 import { cn } from "@/lib/utils";
 
 type WorkoutExerciseRow = {
@@ -47,12 +48,11 @@ export default async function ClientProgramPage({
 
   const admin = createAdminClient();
 
-  const { data: coachData } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (coachData?.role !== "coach") redirect("/home");
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx || !canAccessClient(ctx, clientId)) redirect("/home");
+  const otherClientFilter = ctx.allowedClientIds !== null
+    ? ctx.allowedClientIds.filter((cid) => cid !== clientId)
+    : null;
 
   const [{ data: clientData }, { data: assignmentData }, { data: workoutsData }, { data: otherClientsData }] =
     await Promise.all([
@@ -60,7 +60,7 @@ export default async function ClientProgramPage({
         .from("profiles")
         .select("id, full_name, email")
         .eq("id", clientId)
-        .eq("coach_id", user.id)
+        .eq("coach_id", ctx.headCoachId)
         .single(),
       admin
         .from("client_programs")
@@ -79,13 +79,19 @@ export default async function ClientProgramPage({
         `)
         .eq("program_id", programId)
         .order("day_order"),
-      admin
-        .from("profiles")
-        .select("id, full_name, email")
-        .eq("coach_id", user.id)
-        .eq("archived", false)
-        .neq("id", clientId)
-        .order("full_name"),
+      (otherClientFilter && otherClientFilter.length === 0
+        ? Promise.resolve({ data: [] })
+        : (() => {
+            let q = admin
+              .from("profiles")
+              .select("id, full_name, email")
+              .eq("coach_id", ctx.headCoachId)
+              .eq("archived", false)
+              .neq("id", clientId)
+              .order("full_name");
+            if (otherClientFilter) q = q.in("id", otherClientFilter);
+            return q;
+          })()),
     ]);
 
   if (!clientData || !assignmentData) notFound();

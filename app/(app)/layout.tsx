@@ -23,23 +23,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Archived clients keep their account and all data, but lose access to the app
   // immediately — every request bounces them to the paused screen.
-  if (profile.archived && profile.role !== "coach") {
+  if (profile.archived && profile.role === "client") {
     redirect("/paused");
   }
 
-  const isCoach = profile.role === "coach";
+  // Head coaches and assistant coaches both use the coach-style nav.
+  const isStaff = profile.role === "coach" || profile.role === "assistant";
 
   return (
     <div className="flex h-full flex-col">
-      {isCoach ? (
+      {isStaff ? (
         <CoachNav profile={profile as Profile} />
       ) : null}
 
-      <main className={`flex-1 overflow-y-auto ${!isCoach ? "pb-20" : ""}`}>
+      <main className={`flex-1 overflow-y-auto ${!isStaff ? "pb-20" : ""}`}>
         {children}
       </main>
 
-      {!isCoach ? (
+      {!isStaff ? (
         <ClientBottomNav />
       ) : null}
     </div>

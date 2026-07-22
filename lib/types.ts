@@ -1,4 +1,4 @@
-export type UserRole = "coach" | "client";
+export type UserRole = "coach" | "client" | "assistant";
 
 export type MuscleGroup =
   | "lower push" | "lower pull" | "upper push" | "upper pull"

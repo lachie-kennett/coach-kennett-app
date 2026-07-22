@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/supabase/server";
+import { getCoachContext, canAccessClient } from "@/lib/coach-context";
 
 export async function startWorkoutLog(workoutId: string, forClientId?: string): Promise<string> {
   const user = await getSessionUser();
@@ -11,12 +12,14 @@ export async function startWorkoutLog(workoutId: string, forClientId?: string): 
   let clientId = user.id;
 
   if (forClientId) {
+    const ctx = await getCoachContext(admin, user.id);
     const { data: clientProfile } = await admin
       .from("profiles")
       .select("id, coach_id")
       .eq("id", forClientId)
       .single();
-    if (!clientProfile || (clientProfile as { coach_id: string }).coach_id !== user.id) {
+    const cp = clientProfile as { coach_id: string } | null;
+    if (!ctx || !cp || cp.coach_id !== ctx.headCoachId || !canAccessClient(ctx, forClientId)) {
       throw new Error("Not authorized to log for this client");
     }
     clientId = forClientId;

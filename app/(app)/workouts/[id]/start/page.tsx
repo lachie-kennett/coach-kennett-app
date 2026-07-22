@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { WorkoutPlayer } from "@/components/workouts/workout-player";
 import { currentProgramWeek, resolveConditioningWeek, type ConditioningWeek } from "@/lib/workout-format";
+import { getCoachContext, canAccessClient } from "@/lib/coach-context";
 
 type Exercise = { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] };
 type WorkoutExercise = {
@@ -39,13 +40,14 @@ export default async function StartWorkoutPage({
   let historyClientId = user.id;
 
   if (forClientId) {
+    const ctx = await getCoachContext(admin, user.id);
     const { data: clientProfile } = await admin
       .from("profiles")
       .select("id, full_name, email, coach_id")
       .eq("id", forClientId)
       .single();
     const cp = clientProfile as { id: string; full_name: string | null; email: string; coach_id: string } | null;
-    if (!cp || cp.coach_id !== user.id) redirect("/dashboard");
+    if (!ctx || !cp || cp.coach_id !== ctx.headCoachId || !canAccessClient(ctx, forClientId)) redirect("/clients");
     forClient = { id: cp.id, name: cp.full_name ?? cp.email };
     historyClientId = cp.id;
   }

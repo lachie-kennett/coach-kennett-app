@@ -9,34 +9,39 @@ import { AssignTemplateDialog } from "@/components/programs/assign-template-dial
 import { SessionTemplatesManager } from "@/components/programs/session-templates-manager";
 import { ProgramNameEditor } from "@/components/programs/program-name-editor";
 import { cn } from "@/lib/utils";
-import type { Profile, Program } from "@/lib/types";
+import { getCoachContext } from "@/lib/coach-context";
+import type { Program } from "@/lib/types";
 
 export default async function ProgramsPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   const admin = createAdminClient();
-  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
-  const profile = profileData as Pick<Profile, "role"> | null;
-  if (profile?.role !== "coach") redirect("/home");
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) redirect("/home");
+
+  let clientsQuery = admin
+    .from("profiles")
+    .select("id, full_name, email")
+    .eq("coach_id", ctx.headCoachId)
+    .eq("role", "client")
+    .order("full_name");
+  if (ctx.allowedClientIds !== null) {
+    clientsQuery = clientsQuery.in("id", ctx.allowedClientIds.length > 0 ? ctx.allowedClientIds : ["00000000-0000-0000-0000-000000000000"]);
+  }
 
   const [{ data: programsData }, { data: clientsData }, { data: sessionTemplatesData }] = await Promise.all([
     admin
       .from("programs")
       .select("id, name, description, created_at")
-      .eq("coach_id", user.id)
+      .eq("coach_id", ctx.headCoachId)
       .is("client_id", null)
       .order("created_at", { ascending: false }),
-    admin
-      .from("profiles")
-      .select("id, full_name, email")
-      .eq("coach_id", user.id)
-      .eq("role", "client")
-      .order("full_name"),
+    clientsQuery,
     admin
       .from("session_templates")
       .select("id, name, session_type")
-      .eq("coach_id", user.id)
+      .eq("coach_id", ctx.headCoachId)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -52,9 +57,11 @@ export default async function ProgramsPage() {
           <h1 className="text-2xl font-bold">Templates</h1>
           <p className="text-sm text-muted-foreground mt-1">{programs?.length ?? 0} reusable programs</p>
         </div>
-        <Link href="/programs/new" className={cn(buttonVariants({ size: "sm" }))}>
-          <Plus className="mr-2 h-4 w-4" /> New template
-        </Link>
+        {!ctx.isAssistant && (
+          <Link href="/programs/new" className={cn(buttonVariants({ size: "sm" }))}>
+            <Plus className="mr-2 h-4 w-4" /> New template
+          </Link>
+        )}
       </div>
 
       {programs && programs.length > 0 ? (
@@ -95,7 +102,7 @@ export default async function ProgramsPage() {
         </Card>
       )}
 
-      <SessionTemplatesManager templates={sessionTemplates} />
+      {!ctx.isAssistant && <SessionTemplatesManager templates={sessionTemplates} />}
     </div>
   );
 }

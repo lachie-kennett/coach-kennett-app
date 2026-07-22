@@ -7,7 +7,8 @@ import { ArrowLeft } from "lucide-react";
 import { ProgramBuilder } from "@/components/programs/program-builder";
 import { ProgramNameEditor } from "@/components/programs/program-name-editor";
 import { cn } from "@/lib/utils";
-import type { Profile, Program } from "@/lib/types";
+import { getCoachContext, canAccessClient } from "@/lib/coach-context";
+import type { Program } from "@/lib/types";
 
 export default async function ProgramDetailPage({
   params,
@@ -22,9 +23,8 @@ export default async function ProgramDetailPage({
   if (!user) redirect("/login");
 
   const admin = createAdminClient();
-  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
-  const profile = profileData as Pick<Profile, "role"> | null;
-  if (profile?.role !== "coach") redirect("/home");
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) redirect("/home");
 
   // When editing in the context of a client, back returns to that client's
   // profile; otherwise to the programs list.
@@ -35,7 +35,7 @@ export default async function ProgramDetailPage({
       .from("profiles")
       .select("full_name")
       .eq("id", clientId)
-      .eq("coach_id", user.id)
+      .eq("coach_id", ctx.headCoachId)
       .single();
     if (clientRow) {
       backHref = `/clients/${clientId}`;
@@ -47,11 +47,15 @@ export default async function ProgramDetailPage({
     .from("programs")
     .select("*")
     .eq("id", id)
-    .eq("coach_id", user.id)
+    .eq("coach_id", ctx.headCoachId)
     .single();
 
-  const program = programData as Program | null;
+  const program = programData as (Program & { client_id: string | null }) | null;
   if (!program) notFound();
+  // Assistants may only open programs for their assigned clients (not templates).
+  if (ctx.isAssistant && (!program.client_id || !canAccessClient(ctx, program.client_id))) {
+    redirect("/clients");
+  }
 
   const { data: workoutsData } = await admin
     .from("program_workouts")
@@ -69,13 +73,13 @@ export default async function ProgramDetailPage({
   const { data: exercisesData } = await admin
     .from("exercises")
     .select("id, name, muscle_groups, youtube_url")
-    .eq("coach_id", user.id)
+    .eq("coach_id", ctx.headCoachId)
     .order("name");
 
   const { data: sessionTemplatesData } = await admin
     .from("session_templates")
     .select("id, name, session_type")
-    .eq("coach_id", user.id)
+    .eq("coach_id", ctx.headCoachId)
     .order("created_at", { ascending: false });
   const sessionTemplates = (sessionTemplatesData ?? []) as { id: string; name: string; session_type: string | null }[];
 

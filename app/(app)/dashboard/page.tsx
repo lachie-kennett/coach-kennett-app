@@ -30,7 +30,8 @@ export default async function DashboardPage() {
     .single();
 
   const profile = profileData as Pick<Profile, "role"> | null;
-  if (profile?.role !== "coach") redirect("/home");
+  // The dashboard is head-coach only; assistants work from their clients list.
+  if (profile?.role !== "coach") redirect(profile?.role === "assistant" ? "/clients" : "/home");
 
   const [
     { count: clientCount },

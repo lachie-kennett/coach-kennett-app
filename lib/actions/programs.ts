@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/supabase/server";
+import { getCoachContext } from "@/lib/coach-context";
 import { revalidatePath } from "next/cache";
 
 export async function createProgram(params: {
@@ -15,11 +16,17 @@ export async function createProgram(params: {
   if (!user) throw new Error("Not authenticated");
 
   const admin = createAdminClient();
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) throw new Error("Not authorized");
+  // Assistants may only create programs for clients assigned to them.
+  if (params.clientId && ctx.allowedClientIds !== null && !ctx.allowedClientIds.includes(params.clientId)) {
+    throw new Error("Not authorized for this client");
+  }
 
   const { data, error } = await admin
     .from("programs")
     .insert({
-      coach_id: user.id,
+      coach_id: ctx.headCoachId,
       name: params.name,
       description: params.description,
       client_id: params.clientId ?? null,
@@ -186,23 +193,21 @@ export async function assignTemplate(params: {
   if (!user) return { error: "Not authenticated" };
   const admin = createAdminClient();
 
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) return { error: "Not authorized" };
+
   const { data: src } = await admin
     .from("programs")
     .select("coach_id, name, description")
     .eq("id", params.templateId)
     .single();
   const s = src as { coach_id: string; name: string; description: string | null } | null;
-  if (!s || s.coach_id !== user.id) return { error: "Not authorized" };
+  if (!s || s.coach_id !== ctx.headCoachId) return { error: "Not authorized" };
 
-  const { data: client } = await admin
-    .from("profiles")
-    .select("coach_id")
-    .eq("id", params.clientId)
-    .single();
-  if ((client as { coach_id: string } | null)?.coach_id !== user.id) return { error: "Not authorized" };
+  if (!(await clientInScope(admin, ctx, params.clientId))) return { error: "Not authorized" };
 
   const newId = await deepCopyProgram(admin, params.templateId, {
-    coachId: user.id,
+    coachId: ctx.headCoachId,
     clientId: params.clientId,
     name: s.name,
     description: s.description,
@@ -235,23 +240,21 @@ export async function copyProgramToClient(params: {
   if (!user) return { error: "Not authenticated" };
   const admin = createAdminClient();
 
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) return { error: "Not authorized" };
+
   const { data: src } = await admin
     .from("programs")
-    .select("coach_id, name, description")
+    .select("coach_id, client_id, name, description")
     .eq("id", params.sourceProgramId)
     .single();
-  const s = src as { coach_id: string; name: string; description: string | null } | null;
-  if (!s || s.coach_id !== user.id) return { error: "Not authorized" };
+  const s = src as { coach_id: string; client_id: string | null; name: string; description: string | null } | null;
+  if (!s || !ctxAllowsProgram(ctx, s)) return { error: "Not authorized" };
 
-  const { data: client } = await admin
-    .from("profiles")
-    .select("coach_id")
-    .eq("id", params.clientId)
-    .single();
-  if ((client as { coach_id: string } | null)?.coach_id !== user.id) return { error: "Not authorized" };
+  if (!(await clientInScope(admin, ctx, params.clientId))) return { error: "Not authorized" };
 
   const newId = await deepCopyProgram(admin, params.sourceProgramId, {
-    coachId: user.id,
+    coachId: ctx.headCoachId,
     clientId: params.clientId,
     name: s.name,
     description: s.description,
@@ -306,6 +309,32 @@ type ActionResult = { error?: string };
 
 // Confirms the signed-in coach owns the program that a given workout belongs to.
 // Returns the program_id on success, or null if not owned / not found.
+// A head coach owns everything in their ecosystem; an assistant may only touch
+// programs belonging to a client assigned to them (never shared templates).
+function ctxAllowsProgram(
+  ctx: { headCoachId: string; allowedClientIds: string[] | null },
+  program: { coach_id: string; client_id: string | null }
+): boolean {
+  if (program.coach_id !== ctx.headCoachId) return false;
+  if (ctx.allowedClientIds !== null) {
+    if (!program.client_id || !ctx.allowedClientIds.includes(program.client_id)) return false;
+  }
+  return true;
+}
+
+// Confirms a target client belongs to the head coach and is in scope for the
+// signed-in staff member (all clients for a coach; assigned ones for assistants).
+async function clientInScope(
+  admin: ReturnType<typeof createAdminClient>,
+  ctx: { headCoachId: string; allowedClientIds: string[] | null },
+  clientId: string
+): Promise<boolean> {
+  const { data } = await admin.from("profiles").select("coach_id").eq("id", clientId).single();
+  const c = data as { coach_id: string | null } | null;
+  if (!c || c.coach_id !== ctx.headCoachId) return false;
+  return ctx.allowedClientIds === null || ctx.allowedClientIds.includes(clientId);
+}
+
 async function ownedProgramForWorkout(
   admin: ReturnType<typeof createAdminClient>,
   workoutId: string,
@@ -313,11 +342,13 @@ async function ownedProgramForWorkout(
 ): Promise<string | null> {
   const { data } = await admin
     .from("program_workouts")
-    .select("program_id, programs(coach_id)")
+    .select("program_id, programs(coach_id, client_id)")
     .eq("id", workoutId)
     .single();
-  const row = data as { program_id: string; programs: { coach_id: string } | null } | null;
-  if (!row || row.programs?.coach_id !== userId) return null;
+  const row = data as { program_id: string; programs: { coach_id: string; client_id: string | null } | null } | null;
+  if (!row || !row.programs) return null;
+  const ctx = await getCoachContext(admin, userId);
+  if (!ctx || !ctxAllowsProgram(ctx, row.programs)) return null;
   return row.program_id;
 }
 
@@ -328,10 +359,13 @@ async function ownsProgram(
 ): Promise<boolean> {
   const { data } = await admin
     .from("programs")
-    .select("coach_id")
+    .select("coach_id, client_id")
     .eq("id", programId)
     .single();
-  return (data as { coach_id: string } | null)?.coach_id === userId;
+  const row = data as { coach_id: string; client_id: string | null } | null;
+  if (!row) return false;
+  const ctx = await getCoachContext(admin, userId);
+  return !!ctx && ctxAllowsProgram(ctx, row);
 }
 
 export async function addWorkout(params: {

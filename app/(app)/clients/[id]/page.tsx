@@ -9,6 +9,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { AssignProgramDialog } from "@/components/clients/assign-program-dialog";
 import { ArchiveClientButton } from "@/components/clients/archive-client-button";
 import { CopyFromClientDialog } from "@/components/programs/copy-from-client-dialog";
+import { getCoachContext, canAccessClient } from "@/lib/coach-context";
 import { ArrowLeft, ArrowRight, Trophy, BookOpen, Clock, Plus } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -31,18 +32,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
   const admin = createAdminClient();
 
-  const { data: coachData } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (coachData?.role !== "coach") redirect("/home");
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx || !canAccessClient(ctx, id)) redirect("/home");
 
   const { data: clientData } = await admin
     .from("profiles")
     .select("*")
     .eq("id", id)
-    .eq("coach_id", user.id)
+    .eq("coach_id", ctx.headCoachId)
     .single();
 
   const client = clientData as Profile | null;
@@ -70,7 +67,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       .eq("client_id", id)
       .order("is_active", { ascending: false })
       .order("start_date", { ascending: false }),
-    admin.from("programs").select("id, name").eq("coach_id", user.id).is("client_id", null),
+    admin.from("programs").select("id, name").eq("coach_id", ctx.headCoachId).is("client_id", null),
     admin
       .from("personal_records")
       .select("id, weight_kg, reps, achieved_at, exercises(name)")
@@ -99,7 +96,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const { data: otherClientsData } = await admin
     .from("profiles")
     .select("id, full_name, email")
-    .eq("coach_id", user.id)
+    .eq("coach_id", ctx.headCoachId)
     .eq("archived", false)
     .neq("id", id)
     .order("full_name");
@@ -111,7 +108,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     const { data: srcProgramsData } = await admin
       .from("programs")
       .select("id, name, client_id")
-      .eq("coach_id", user.id)
+      .eq("coach_id", ctx.headCoachId)
       .in("client_id", otherIds)
       .order("created_at", { ascending: false });
     for (const p of (srcProgramsData ?? []) as { id: string; name: string; client_id: string }[]) {
@@ -137,11 +134,13 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </div>
           <p className="text-sm text-muted-foreground truncate">{client.email}</p>
         </div>
-        <ArchiveClientButton
-          clientId={client.id}
-          name={client.full_name ?? "this client"}
-          archived={client.archived}
-        />
+        {!ctx.isAssistant && (
+          <ArchiveClientButton
+            clientId={client.id}
+            name={client.full_name ?? "this client"}
+            archived={client.archived}
+          />
+        )}
       </div>
 
       {client.archived && (
@@ -167,7 +166,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <Plus className="mr-1 h-4 w-4" /> New
             </Link>
             <CopyFromClientDialog targetClientId={id} sources={copySources} />
-            <AssignProgramDialog clientId={id} coachId={user.id} programs={programs ?? []} />
+            <AssignProgramDialog clientId={id} coachId={ctx.headCoachId} programs={programs ?? []} />
           </div>
         </CardHeader>
         <CardContent className="p-0">

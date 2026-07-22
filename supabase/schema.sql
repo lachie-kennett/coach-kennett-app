@@ -359,3 +359,14 @@ create table if not exists conditioning_weeks (
   unique (workout_exercise_id, week_number)
 );
 create index if not exists conditioning_weeks_we_idx on conditioning_weeks (workout_exercise_id);
+
+-- Assistant coaches: a non-owner staff role that works inside a head coach's
+-- ecosystem (their profile.coach_id points at the head coach) but may only
+-- manage the clients explicitly assigned to them here.
+-- NOTE: run `alter type user_role add value if not exists 'assistant';` first.
+create table if not exists assistant_clients (
+  assistant_id uuid not null references profiles(id) on delete cascade,
+  client_id uuid not null references profiles(id) on delete cascade,
+  primary key (assistant_id, client_id)
+);
+create index if not exists assistant_clients_assistant_idx on assistant_clients (assistant_id);

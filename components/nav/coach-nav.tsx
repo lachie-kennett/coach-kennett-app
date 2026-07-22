@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Dumbbell, BookOpen, Trophy, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Dumbbell, BookOpen, Trophy, LogOut, UserCog } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,22 +10,26 @@ import type { Database } from "@/lib/supabase/types";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
-const links = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/clients", label: "Clients", icon: Users },
-  { href: "/programs", label: "Programs", icon: BookOpen },
-  { href: "/exercises", label: "Exercises", icon: Dumbbell },
-  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-];
-
 export function CoachNav({ profile }: { profile: Profile }) {
   const pathname = usePathname();
+  const isCoach = profile.role === "coach";
+  const homeHref = isCoach ? "/dashboard" : "/clients";
+
+  // Assistants get the core surfaces; head coaches also get Dashboard + Team.
+  const links = [
+    ...(isCoach ? [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] : []),
+    { href: "/clients", label: "Clients", icon: Users },
+    { href: "/programs", label: "Programs", icon: BookOpen },
+    { href: "/exercises", label: "Exercises", icon: Dumbbell },
+    { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+    ...(isCoach ? [{ href: "/team", label: "Team", icon: UserCog }] : []),
+  ];
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-sm">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         <div className="flex items-center gap-6">
-          <Link href="/dashboard">
+          <Link href={homeHref}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-offwhite.svg" alt="Coach Kennett" className="h-8 w-auto hidden dark:block" />
             {/* eslint-disable-next-line @next/next/no-img-element */}

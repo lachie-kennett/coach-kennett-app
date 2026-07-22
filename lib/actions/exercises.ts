@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCoachContext } from "@/lib/coach-context";
 
 type MuscleGroup = string;
 
@@ -16,13 +17,8 @@ export async function createExercise(data: {
   if (!user) return { error: "Not authenticated" };
 
   const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "coach") return { error: "Not authorized" };
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) return { error: "Not authorized" };
 
   const name = data.name.trim();
 
@@ -30,7 +26,7 @@ export async function createExercise(data: {
   const { data: dupes } = await admin
     .from("exercises")
     .select("id")
-    .eq("coach_id", user.id)
+    .eq("coach_id", ctx.headCoachId)
     .ilike("name", name)
     .limit(1);
   if (dupes && dupes.length > 0) {
@@ -38,7 +34,7 @@ export async function createExercise(data: {
   }
 
   const { data: created, error } = await admin.from("exercises").insert({
-    coach_id: user.id,
+    coach_id: ctx.headCoachId,
     name,
     description: data.description,
     youtube_url: data.youtube_url,
@@ -63,6 +59,8 @@ export async function updateExercise(
   if (!user) return { error: "Not authenticated" };
 
   const admin = createAdminClient();
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) return { error: "Not authorized" };
 
   const { data: existing } = await admin
     .from("exercises")
@@ -70,7 +68,7 @@ export async function updateExercise(
     .eq("id", id)
     .single();
 
-  if (existing?.coach_id !== user.id) return { error: "Not authorized" };
+  if ((existing as { coach_id: string } | null)?.coach_id !== ctx.headCoachId) return { error: "Not authorized" };
 
   const name = data.name.trim();
 
@@ -78,7 +76,7 @@ export async function updateExercise(
   const { data: dupes } = await admin
     .from("exercises")
     .select("id")
-    .eq("coach_id", user.id)
+    .eq("coach_id", ctx.headCoachId)
     .ilike("name", name)
     .neq("id", id)
     .limit(1);
@@ -103,6 +101,8 @@ export async function deleteExercise(id: string): Promise<{ error?: string }> {
   if (!user) return { error: "Not authenticated" };
 
   const admin = createAdminClient();
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) return { error: "Not authorized" };
 
   const { data: existing } = await admin
     .from("exercises")
@@ -110,7 +110,7 @@ export async function deleteExercise(id: string): Promise<{ error?: string }> {
     .eq("id", id)
     .single();
 
-  if (existing?.coach_id !== user.id) return { error: "Not authorized" };
+  if ((existing as { coach_id: string } | null)?.coach_id !== ctx.headCoachId) return { error: "Not authorized" };
 
   const { error } = await admin.from("exercises").delete().eq("id", id);
   if (error) return { error: error.message };

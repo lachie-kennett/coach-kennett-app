@@ -14,7 +14,10 @@ export default async function ExercisesPage() {
     .eq("id", user.id)
     .single();
 
+  // For a head coach it's their own library; assistants and clients see their
+  // head coach's library (profile.coach_id points at the head coach).
   const coachId = profile?.role === "coach" ? user.id : profile?.coach_id;
+  const isStaff = profile?.role === "coach" || profile?.role === "assistant";
 
   const { data: exercises } = await admin
     .from("exercises")
@@ -25,7 +28,7 @@ export default async function ExercisesPage() {
   return (
     <ExerciseLibrary
       exercises={exercises ?? []}
-      isCoach={profile?.role === "coach"}
+      isCoach={isStaff}
       coachId={coachId ?? ""}
     />
   );

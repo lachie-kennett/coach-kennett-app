@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, UserPlus } from "lucide-react";
 import { AddClientDialog } from "@/components/clients/add-client-dialog";
+import { getCoachContext } from "@/lib/coach-context";
 import type { Profile } from "@/lib/types";
 
 export default async function ClientsPage() {
@@ -13,15 +14,19 @@ export default async function ClientsPage() {
   if (!user) redirect("/login");
 
   const admin = createAdminClient();
-  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).single();
-  const profile = profileData as Pick<Profile, "role"> | null;
-  if (profile?.role !== "coach") redirect("/home");
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) redirect("/home");
 
-  const { data: clientsData } = await admin
+  let clientsQuery = admin
     .from("profiles")
     .select("id, full_name, email, created_at, archived")
-    .eq("coach_id", user.id)
+    .eq("coach_id", ctx.headCoachId)
     .order("full_name");
+  // Assistants only see the clients assigned to them.
+  if (ctx.allowedClientIds !== null) {
+    clientsQuery = clientsQuery.in("id", ctx.allowedClientIds.length > 0 ? ctx.allowedClientIds : ["00000000-0000-0000-0000-000000000000"]);
+  }
+  const { data: clientsData } = await clientsQuery;
 
   const allClients = clientsData as Pick<Profile, "id" | "full_name" | "email" | "created_at" | "archived">[] | null;
   const clients = allClients?.filter((c) => !c.archived) ?? [];
@@ -57,7 +62,7 @@ export default async function ClientsPage() {
             {clients.length} active{archivedClients.length > 0 ? ` · ${archivedClients.length} archived` : ""}
           </p>
         </div>
-        <AddClientDialog />
+        {!ctx.isAssistant && <AddClientDialog />}
       </div>
 
       {clients.length > 0 ? (
