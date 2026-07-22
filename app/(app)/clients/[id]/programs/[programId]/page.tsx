@@ -61,6 +61,7 @@ export default async function ClientProgramPage({
         .select("id, full_name, email")
         .eq("id", clientId)
         .eq("coach_id", ctx.headCoachId)
+        .eq("role", "client")
         .single(),
       admin
         .from("client_programs")
@@ -86,6 +87,7 @@ export default async function ClientProgramPage({
               .from("profiles")
               .select("id, full_name, email")
               .eq("coach_id", ctx.headCoachId)
+              .eq("role", "client")
               .eq("archived", false)
               .neq("id", clientId)
               .order("full_name");

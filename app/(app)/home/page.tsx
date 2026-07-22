@@ -89,7 +89,7 @@ export default async function ClientHomePage() {
   if (profile?.coach_id) {
     const since = new Date(Date.now() - 28 * 86400000).toISOString();
     const { data: peersData } = await admin
-      .from("profiles").select("id, full_name").eq("coach_id", profile.coach_id).eq("archived", false);
+      .from("profiles").select("id, full_name").eq("coach_id", profile.coach_id).eq("role", "client").eq("archived", false);
     const peers = (peersData ?? []) as PeerRow[];
     const peerIds = peers.map(p => p.id);
     const countMap = new Map<string, number>();

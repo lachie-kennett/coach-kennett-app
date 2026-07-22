@@ -38,10 +38,11 @@ export default async function DashboardPage() {
     { count: exerciseCount },
     { data: allClientsData },
   ] = await Promise.all([
-    admin.from("profiles").select("*", { count: "exact", head: true }).eq("coach_id", user.id).eq("archived", false),
+    admin.from("profiles").select("*", { count: "exact", head: true }).eq("coach_id", user.id).eq("role", "client").eq("archived", false),
     admin.from("exercises").select("*", { count: "exact", head: true }).eq("coach_id", user.id),
+    // Only clients — assistants share coach_id but must never appear as clients.
     // Archived clients are excluded so they never surface as "needing attention".
-    admin.from("profiles").select("id, full_name, email").eq("coach_id", user.id).eq("archived", false).order("full_name"),
+    admin.from("profiles").select("id, full_name, email").eq("coach_id", user.id).eq("role", "client").eq("archived", false).order("full_name"),
   ]);
 
   const allClients = (allClientsData ?? []) as ClientRow[];

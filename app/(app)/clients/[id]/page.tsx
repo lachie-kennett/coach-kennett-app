@@ -40,6 +40,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     .select("*")
     .eq("id", id)
     .eq("coach_id", ctx.headCoachId)
+    .eq("role", "client")
     .single();
 
   const client = clientData as Profile | null;
@@ -97,6 +98,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     .from("profiles")
     .select("id, full_name, email")
     .eq("coach_id", ctx.headCoachId)
+    .eq("role", "client")
     .eq("archived", false)
     .neq("id", id)
     .order("full_name");

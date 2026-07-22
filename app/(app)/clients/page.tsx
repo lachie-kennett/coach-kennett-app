@@ -21,6 +21,7 @@ export default async function ClientsPage() {
     .from("profiles")
     .select("id, full_name, email, created_at, archived")
     .eq("coach_id", ctx.headCoachId)
+    .eq("role", "client")
     .order("full_name");
   // Assistants only see the clients assigned to them.
   if (ctx.allowedClientIds !== null) {
