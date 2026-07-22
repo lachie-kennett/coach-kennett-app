@@ -29,6 +29,7 @@ import {
   createSuperset,
   dissolveSuperset,
   reorderWorkoutExercises,
+  reorderWorkouts,
   saveSessionAsTemplate,
   addSessionTemplateToProgram,
 } from "@/lib/actions/programs";
@@ -112,10 +113,9 @@ function AddExercisePanel({
   const [loading, setLoading] = useState(false);
 
   const activeWorkout = workouts.find((w) => w.id === activeWorkoutId);
-  // Conditioning + speed days use the conditioning layout; everything else
-  // (strength, agility, mobility, untyped…) uses the strength layout.
-  const isConditioning =
-    activeWorkout?.session_type === "conditioning" || activeWorkout?.session_type === "speed";
+  // Only conditioning days use the conditioning layout; everything else
+  // (strength, speed, agility, mobility, untyped…) uses the strength layout.
+  const isConditioning = activeWorkout?.session_type === "conditioning";
   // Exercises created inline this session, merged into the pool so a freshly
   // created exercise is immediately selectable before a refresh.
   const [createdExercises, setCreatedExercises] = useState<Exercise[]>([]);
@@ -676,6 +676,39 @@ function WorkoutCard({
   );
 }
 
+// Wraps a day card with a drag handle so days can be reordered.
+function SortableWorkoutCard(props: {
+  workout: Workout;
+  isActive: boolean;
+  onActivate: (workoutId: string) => void;
+  onUpdate: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.workout.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-start gap-1">
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="mt-3 shrink-0 cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
+        title="Drag to reorder day"
+        aria-label="Drag to reorder day"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <div className="min-w-0 flex-1">
+        <WorkoutCard
+          workout={props.workout}
+          isActive={props.isActive}
+          onActivate={props.onActivate}
+          onUpdate={props.onUpdate}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function ProgramBuilder({
   programId,
   initialWorkouts,
@@ -704,6 +737,34 @@ export function ProgramBuilder({
     initialWorkouts[0]?.id ?? null
   );
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Local day order for instant drag feedback; re-synced whenever the server
+  // data changes (add/remove/refresh).
+  const [dayOrder, setDayOrder] = useState<string[]>(initialWorkouts.map((w) => w.id));
+  useEffect(() => {
+    setDayOrder(initialWorkouts.map((w) => w.id));
+  }, [initialWorkouts]);
+  const orderedWorkouts = dayOrder
+    .map((id) => initialWorkouts.find((w) => w.id === id))
+    .filter((w): w is Workout => Boolean(w));
+
+  const daySensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  async function handleDayDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = dayOrder.indexOf(active.id as string);
+    const newIndex = dayOrder.indexOf(over.id as string);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(dayOrder, oldIndex, newIndex);
+    setDayOrder(next); // optimistic
+    const { error } = await reorderWorkouts({ programId, orderedIds: next });
+    if (error) { toast.error(error); setDayOrder(initialWorkouts.map((w) => w.id)); return; }
+    router.refresh();
+  }
 
   // Keep the active day valid as workouts are added/removed.
   useEffect(() => {
@@ -823,17 +884,21 @@ export function ProgramBuilder({
         </Card>
       )}
 
-      <div className="space-y-3">
-        {initialWorkouts.map((w) => (
-          <WorkoutCard
-            key={w.id}
-            workout={w}
-            isActive={w.id === activeWorkoutId}
-            onActivate={activateWorkout}
-            onUpdate={refresh}
-          />
-        ))}
-      </div>
+      <DndContext sensors={daySensors} collisionDetection={closestCenter} onDragEnd={handleDayDragEnd}>
+        <SortableContext items={orderedWorkouts.map((w) => w.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-3">
+            {orderedWorkouts.map((w) => (
+              <SortableWorkoutCard
+                key={w.id}
+                workout={w}
+                isActive={w.id === activeWorkoutId}
+                onActivate={activateWorkout}
+                onUpdate={refresh}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       <Separator />
 

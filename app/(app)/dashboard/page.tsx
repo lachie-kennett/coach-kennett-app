@@ -13,6 +13,7 @@ type ActiveProgramRow = {
 };
 type FeedRow = {
   id: string; client_id: string; completed_at: string; rpe: number | null;
+  notes: string | null;
   program_workouts: { name: string } | null;
 };
 
@@ -36,9 +37,10 @@ export default async function DashboardPage() {
     { count: exerciseCount },
     { data: allClientsData },
   ] = await Promise.all([
-    admin.from("profiles").select("*", { count: "exact", head: true }).eq("coach_id", user.id),
+    admin.from("profiles").select("*", { count: "exact", head: true }).eq("coach_id", user.id).eq("archived", false),
     admin.from("exercises").select("*", { count: "exact", head: true }).eq("coach_id", user.id),
-    admin.from("profiles").select("id, full_name, email").eq("coach_id", user.id).order("full_name"),
+    // Archived clients are excluded so they never surface as "needing attention".
+    admin.from("profiles").select("id, full_name, email").eq("coach_id", user.id).eq("archived", false).order("full_name"),
   ]);
 
   const allClients = (allClientsData ?? []) as ClientRow[];
@@ -56,7 +58,7 @@ export default async function DashboardPage() {
     clientIds.length > 0
       ? admin
           .from("workout_logs")
-          .select("id, client_id, completed_at, rpe, program_workouts(name)")
+          .select("id, client_id, completed_at, rpe, notes, program_workouts(name)")
           .in("client_id", clientIds)
           .not("completed_at", "is", null)
           .order("completed_at", { ascending: false })
@@ -116,12 +118,18 @@ export default async function DashboardPage() {
     client_id: f.client_id,
     completed_at: f.completed_at,
     rpe: f.rpe,
+    notes: f.notes,
     sessionName: f.program_workouts?.name ?? null,
   }));
 
   const clientNameMap = Object.fromEntries(
     allClients.map(c => [c.id, c.full_name ?? c.email])
   );
+
+  // Two dedicated buckets: clients with no active program at all (or one that's
+  // already ended → need a new one), and clients whose program ends within 7 days.
+  const needsProgram = attention.filter(c => c.reason === "no_program" || c.reason === "expired");
+  const endingSoon = attention.filter(c => c.reason === "expiring");
 
   return (
     <div className="mx-auto max-w-2xl p-4 space-y-4">
@@ -135,7 +143,8 @@ export default async function DashboardPage() {
         clientCount={clientCount ?? 0}
         exerciseCount={exerciseCount ?? 0}
         feed={feed}
-        attention={attention}
+        needsProgram={needsProgram}
+        endingSoon={endingSoon}
         recentClients={allClients.slice(0, 10)}
         clientNameMap={clientNameMap}
       />

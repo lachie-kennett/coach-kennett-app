@@ -669,6 +669,30 @@ export async function reorderWorkoutExercises(params: {
   return {};
 }
 
+// Reorders the days (workouts) within a program by writing a fresh, sequential
+// day_order for each — also fixes any duplicate day_order values.
+export async function reorderWorkouts(params: {
+  programId: string;
+  orderedIds: string[];
+}): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  if (!(await ownsProgram(admin, params.programId, user.id))) return { error: "Not authorized" };
+
+  for (let i = 0; i < params.orderedIds.length; i++) {
+    const { error } = await admin
+      .from("program_workouts")
+      .update({ day_order: i } as never)
+      .eq("id", params.orderedIds[i])
+      .eq("program_id", params.programId); // guard: only rows in this program
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath(`/programs/${params.programId}`);
+  return {};
+}
+
 // ── Session templates (reusable single sessions) ───────────────────────────
 
 // Saves one workout day (with its exercises) as a reusable session template.

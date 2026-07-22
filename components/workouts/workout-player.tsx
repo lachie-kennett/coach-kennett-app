@@ -376,6 +376,21 @@ export function WorkoutPlayer({
         })),
       };
     });
+    // Mark the sets on this page as done (they have data and we're moving past
+    // them) so the progress counter reflects real progress rather than the
+    // pre-filled defaults.
+    setSets((prev) => {
+      const next = { ...prev };
+      for (const item of page) {
+        const arr = next[item.id];
+        if (!arr) continue;
+        next[item.id] = arr.map((e) =>
+          e.completed || e.reps.trim() !== "" || e.weight.trim() !== "" ? { ...e, completed: true } : e
+        );
+      }
+      return next;
+    });
+
     // Fire-and-forget so page changes stay instant; the device draft is the
     // safety net if this write is slow or fails.
     savePageSets({ workoutLogId, forClientId: forClient?.id, entries })
@@ -504,9 +519,10 @@ export function WorkoutPlayer({
     router.push(cancelPath);
   }
 
-  // A set counts as "done" once it has data entered (or a conditioning block has
-  // been marked done) — no separate tick required.
-  const isDone = (s: SetEntry) => s.completed || s.reps.trim() !== "" || s.weight.trim() !== "";
+  // A set counts as "done" once its page has been saved (moving to the next
+  // exercise) or a conditioning block is marked done — not just because a field
+  // is pre-filled with last session's numbers.
+  const isDone = (s: SetEntry) => s.completed;
   const totalCompleted = Object.values(sets).reduce((sum, arr) => sum + arr.filter(isDone).length, 0);
   const totalSets = exercises.reduce((sum, we) => sum + (sets[we.id]?.length ?? we.sets), 0)
     + adHocExercises.reduce((sum, ah) => sum + (sets[ah.sessionExId]?.length ?? 0), 0);
