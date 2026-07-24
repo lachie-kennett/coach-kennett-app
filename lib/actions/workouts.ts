@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/supabase/server";
 import { getCoachContext, canAccessClient } from "@/lib/coach-context";
+import { revalidatePath } from "next/cache";
 
 export async function startWorkoutLog(workoutId: string, forClientId?: string): Promise<string> {
   const user = await getSessionUser();
@@ -215,6 +216,12 @@ export async function finishWorkoutLog(
     .from("workout_logs")
     .update({ completed_at: new Date().toISOString(), notes: notes ?? null, rpe: rpe ?? null })
     .eq("id", workoutLogId);
+
+  // Refresh the client-facing pages so their session counters/history update
+  // straight away instead of showing a stale cached count.
+  for (const p of ["/home", "/history", "/profile", "/leaderboard", "/workouts"]) {
+    revalidatePath(p);
+  }
 }
 
 export async function cancelWorkoutLog(workoutLogId: string): Promise<void> {

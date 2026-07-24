@@ -93,6 +93,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const pastPrograms = assignments?.filter(a => !a.is_active) ?? [];
   const timezone = await getUserTimezone();
 
+  // Completed-session counters for this client.
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const [{ count: sessionsAllTime }, { count: sessionsThisMonth }] = await Promise.all([
+    admin.from("workout_logs").select("*", { count: "exact", head: true }).eq("client_id", id).not("completed_at", "is", null),
+    admin.from("workout_logs").select("*", { count: "exact", head: true }).eq("client_id", id).not("completed_at", "is", null).gte("completed_at", monthStart.toISOString()),
+  ]);
+
   // Other clients + their programs, so the coach can copy an existing program in.
   const { data: otherClientsData } = await admin
     .from("profiles")
@@ -153,6 +162,22 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </CardContent>
         </Card>
       )}
+
+      {/* Sessions completed */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card>
+          <CardContent className="py-3 text-center">
+            <p className="text-2xl font-bold tabular-nums">{sessionsThisMonth ?? 0}</p>
+            <p className="text-xs text-muted-foreground">sessions this month</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-3 text-center">
+            <p className="text-2xl font-bold tabular-nums">{sessionsAllTime ?? 0}</p>
+            <p className="text-xs text-muted-foreground">sessions all time</p>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Current Program */}
       <Card>

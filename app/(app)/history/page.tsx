@@ -2,24 +2,26 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserTimezone } from "@/lib/supabase/get-timezone";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Clock, Dumbbell } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Clock } from "lucide-react";
+import { HistoryCard, type HistoryEntry } from "@/components/history/history-card";
 import type { Profile } from "@/lib/types";
 
 type SetLogRow = {
-  id: string;
   set_number: number;
   reps_completed: number | null;
   weight_kg: number | null;
   is_pr: boolean;
   workout_exercises: { exercises: { name: string } | null } | null;
+  session_exercises: { exercises: { name: string } | null } | null;
 };
 
 type LogRow = {
   id: string;
   started_at: string;
   completed_at: string;
+  rpe: number | null;
+  notes: string | null;
   program_workouts: { name: string } | null;
   set_logs: SetLogRow[];
 };
@@ -44,83 +46,67 @@ export default async function HistoryPage() {
   const { data: logsData } = await admin
     .from("workout_logs")
     .select(`
-      id, started_at, completed_at,
+      id, started_at, completed_at, rpe, notes,
       program_workouts(name),
-      set_logs(id, set_number, reps_completed, weight_kg, is_pr, workout_exercises(exercises(name)))
+      set_logs(set_number, reps_completed, weight_kg, is_pr,
+        workout_exercises(exercises(name)),
+        session_exercises(exercises(name))
+      )
     `)
     .eq("client_id", user.id)
     .not("completed_at", "is", null)
     .order("completed_at", { ascending: false });
 
-  const logs = logsData as unknown as LogRow[] | null;
+  const logs = (logsData ?? []) as unknown as LogRow[];
+
+  const entries: HistoryEntry[] = logs.map((log) => {
+    const setLogs = log.set_logs ?? [];
+    // Group sets by exercise, keeping first-seen order. Names come from either a
+    // program exercise or a session (custom/added/swapped) exercise.
+    const order: string[] = [];
+    const grouped: Record<string, SetLogRow[]> = {};
+    for (const s of setLogs) {
+      const name = s.workout_exercises?.exercises?.name ?? s.session_exercises?.exercises?.name ?? "Exercise";
+      if (!grouped[name]) { grouped[name] = []; order.push(name); }
+      grouped[name].push(s);
+    }
+    const exercises = order.map((name) => ({
+      name,
+      sets: grouped[name]
+        .slice()
+        .sort((a, b) => a.set_number - b.set_number)
+        .map((s) => ({ setNumber: s.set_number, reps: s.reps_completed, weight: s.weight_kg, isPR: s.is_pr })),
+    }));
+
+    return {
+      id: log.id,
+      title: log.program_workouts?.name ?? "Custom session",
+      dateLabel: new Date(log.completed_at).toLocaleDateString("en-AU", {
+        weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: timezone,
+      }),
+      duration: formatDuration(log.started_at, log.completed_at),
+      totalSets: setLogs.length,
+      prCount: setLogs.filter((s) => s.is_pr).length,
+      rpe: log.rpe,
+      notes: log.notes,
+      exercises,
+    };
+  });
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
-      <h1 className="text-2xl font-bold pt-2">History</h1>
+      <div className="flex items-baseline justify-between pt-2">
+        <h1 className="text-2xl font-bold">History</h1>
+        {entries.length > 0 && (
+          <span className="text-sm text-muted-foreground">{entries.length} session{entries.length !== 1 ? "s" : ""}</span>
+        )}
+      </div>
 
-      {logs && logs.length > 0 ? (
+      {entries.length > 0 ? (
         <div className="space-y-3">
-          {logs.map((log) => {
-            const setLogs = log.set_logs ?? [];
-            const prCount = setLogs.filter((s) => s.is_pr).length;
-            const totalSets = setLogs.length;
-
-            const byExercise = setLogs.reduce<Record<string, SetLogRow[]>>((acc, s) => {
-              const exName = s.workout_exercises?.exercises?.name ?? "Unknown";
-              if (!acc[exName]) acc[exName] = [];
-              acc[exName].push(s);
-              return acc;
-            }, {});
-
-            return (
-              <Card key={log.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base">
-                        {log.program_workouts?.name}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(log.completed_at).toLocaleDateString("en-AU", {
-                          weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: timezone,
-                        })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Clock className="h-3.5 w-3.5" />
-                      {formatDuration(log.started_at, log.completed_at)}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Dumbbell className="h-3.5 w-3.5" /> {totalSets} sets
-                    </span>
-                    {prCount > 0 && (
-                      <Badge className="text-xs bg-primary/20 text-primary border-0">
-                        🏆 {prCount} PR{prCount > 1 ? "s" : ""}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {Object.entries(byExercise).length > 0 && (
-                    <div className="mt-3 space-y-1">
-                      {Object.entries(byExercise).map(([exName, exSets]) => (
-                        <div key={exName} className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{exName}</span>
-                          <span className="font-medium tabular-nums">
-                            {exSets.length} sets
-                            {exSets[0]?.weight_kg ? ` @ ${exSets[0].weight_kg}kg` : ""}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {entries.map((entry) => (
+            <HistoryCard key={entry.id} entry={entry} />
+          ))}
         </div>
       ) : (
         <Card>
