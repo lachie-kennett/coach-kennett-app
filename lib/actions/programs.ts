@@ -792,6 +792,8 @@ export async function saveSessionAsTemplate(workoutId: string): Promise<{ error?
   const user = await getSessionUser();
   if (!user) return { error: "Not authenticated" };
   const admin = createAdminClient();
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) return { error: "Not authorized" };
   const programId = await ownedProgramForWorkout(admin, workoutId, user.id);
   if (!programId) return { error: "Not authorized" };
 
@@ -805,7 +807,7 @@ export async function saveSessionAsTemplate(workoutId: string): Promise<{ error?
 
   const { data: st, error: stErr } = await admin
     .from("session_templates")
-    .insert({ coach_id: user.id, name: src.name, session_type: src.session_type } as never)
+    .insert({ coach_id: ctx.headCoachId, name: src.name, session_type: src.session_type } as never)
     .select("id")
     .single();
   if (stErr || !st) return { error: stErr?.message ?? "Failed to save session" };
@@ -832,6 +834,8 @@ export async function addSessionTemplateToProgram(params: {
   const user = await getSessionUser();
   if (!user) return { error: "Not authenticated" };
   const admin = createAdminClient();
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) return { error: "Not authorized" };
   if (!(await ownsProgram(admin, params.programId, user.id))) return { error: "Not authorized" };
 
   const { data: st } = await admin
@@ -840,7 +844,7 @@ export async function addSessionTemplateToProgram(params: {
     .eq("id", params.sessionTemplateId)
     .single();
   const s = st as { coach_id: string; name: string; session_type: string | null } | null;
-  if (!s || s.coach_id !== user.id) return { error: "Not authorized" };
+  if (!s || s.coach_id !== ctx.headCoachId) return { error: "Not authorized" };
 
   const { data: last } = await admin
     .from("program_workouts")

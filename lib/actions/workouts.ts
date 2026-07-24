@@ -212,16 +212,21 @@ export async function finishWorkoutLog(
   rpe?: number | null
 ): Promise<void> {
   const admin = createAdminClient();
-  await admin
+  const { data: updated } = await admin
     .from("workout_logs")
     .update({ completed_at: new Date().toISOString(), notes: notes ?? null, rpe: rpe ?? null })
-    .eq("id", workoutLogId);
+    .eq("id", workoutLogId)
+    .select("client_id")
+    .single();
 
   // Refresh the client-facing pages so their session counters/history update
   // straight away instead of showing a stale cached count.
-  for (const p of ["/home", "/history", "/profile", "/leaderboard", "/workouts"]) {
+  for (const p of ["/home", "/history", "/profile", "/leaderboard", "/workouts", "/dashboard"]) {
     revalidatePath(p);
   }
+  // And the coach's view of this client's profile (session counters live there).
+  const clientId = (updated as { client_id: string } | null)?.client_id;
+  if (clientId) revalidatePath(`/clients/${clientId}`);
 }
 
 export async function cancelWorkoutLog(workoutLogId: string): Promise<void> {

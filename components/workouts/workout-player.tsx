@@ -160,7 +160,9 @@ export function WorkoutPlayer({
 
   // Key under which this in-progress session is saved on the device, so leaving
   // the app / getting logged out / switching tabs never loses entered weights.
-  const draftKey = `ck-wdraft:${forClient?.id ?? "self"}:${workout.id}`;
+  // Custom sessions have no workout id, so they key on their log id — otherwise
+  // every custom session would share (and clobber) one draft.
+  const draftKey = `ck-wdraft:${forClient?.id ?? "self"}:${freeSessionLogId ?? workout.id}`;
   // True once we've restored a saved draft — the "seed from last session" effect
   // is skipped in that case so we don't overwrite what the athlete already typed.
   const hydrationDoneRef = useRef(false);

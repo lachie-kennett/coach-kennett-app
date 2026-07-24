@@ -134,7 +134,7 @@ export default async function ClientProgramPage({
           <Badge variant={assignment.is_active ? "default" : "secondary"}>
             {assignment.is_active ? "Active" : "Past"}
           </Badge>
-          <SaveAsTemplateButton programId={programId} />
+          {!ctx.isAssistant && <SaveAsTemplateButton programId={programId} />}
           <CopyProgramDialog
             sourceProgramId={programId}
             programName={assignment.programs?.name ?? "Program"}
