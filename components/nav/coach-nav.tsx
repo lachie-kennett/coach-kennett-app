@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Dumbbell, BookOpen, Trophy, LogOut, UserCog } from "lucide-react";
+import { LayoutDashboard, Users, Dumbbell, BookOpen, Trophy, LogOut } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,14 +15,14 @@ export function CoachNav({ profile }: { profile: Profile }) {
   const isCoach = profile.role === "coach";
   const homeHref = isCoach ? "/dashboard" : "/clients";
 
-  // Assistants get the core surfaces; head coaches also get Dashboard + Team.
+  // Head coaches also get a Dashboard tab; the Team page is reached from the
+  // dashboard (kept out of the nav so the mobile bar doesn't overflow).
   const links = [
     ...(isCoach ? [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] : []),
     { href: "/clients", label: "Clients", icon: Users },
     { href: "/programs", label: "Programs", icon: BookOpen },
     { href: "/exercises", label: "Exercises", icon: Dumbbell },
     { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-    ...(isCoach ? [{ href: "/team", label: "Team", icon: UserCog }] : []),
   ];
 
   return (

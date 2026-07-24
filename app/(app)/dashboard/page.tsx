@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardGrid } from "@/components/dashboard/dashboard-grid";
+import { buttonVariants } from "@/components/ui/button";
+import { UserCog } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
 type ClientRow = Pick<Profile, "id" | "full_name" | "email">;
@@ -146,11 +150,16 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-2xl p-4 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {clientCount ?? 0} client{clientCount !== 1 ? "s" : ""} · {exerciseCount ?? 0} exercises
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {clientCount ?? 0} client{clientCount !== 1 ? "s" : ""} · {exerciseCount ?? 0} exercises
+          </p>
+        </div>
+        <Link href="/team" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 shrink-0")}>
+          <UserCog className="h-4 w-4" /> Team
+        </Link>
       </div>
 
       {/* Total sessions logged across all clients */}
