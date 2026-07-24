@@ -71,6 +71,17 @@ export default async function DashboardPage() {
   const activePrograms = (activeProgramsResult.data ?? []) as unknown as ActiveProgramRow[];
   const feedRaw = (feedResult.data ?? []) as unknown as FeedRow[];
 
+  // Total completed sessions across all clients — this month and all time.
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const [{ count: sessionsAllTime }, { count: sessionsThisMonth }] = clientIds.length > 0
+    ? await Promise.all([
+        admin.from("workout_logs").select("*", { count: "exact", head: true }).in("client_id", clientIds).not("completed_at", "is", null),
+        admin.from("workout_logs").select("*", { count: "exact", head: true }).in("client_id", clientIds).not("completed_at", "is", null).gte("completed_at", monthStart.toISOString()),
+      ])
+    : [{ count: 0 }, { count: 0 }];
+
   const activeProgramMap = new Map<string, ActiveProgramRow>();
   for (const ap of activePrograms) {
     if (!activeProgramMap.has(ap.client_id)) {
@@ -141,6 +152,19 @@ export default async function DashboardPage() {
           {clientCount ?? 0} client{clientCount !== 1 ? "s" : ""} · {exerciseCount ?? 0} exercises
         </p>
       </div>
+
+      {/* Total sessions logged across all clients */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-border bg-card py-3 text-center">
+          <p className="text-2xl font-bold tabular-nums">{sessionsThisMonth ?? 0}</p>
+          <p className="text-xs text-muted-foreground">sessions this month</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card py-3 text-center">
+          <p className="text-2xl font-bold tabular-nums">{sessionsAllTime ?? 0}</p>
+          <p className="text-xs text-muted-foreground">sessions all time</p>
+        </div>
+      </div>
+
       <DashboardGrid
         clientCount={clientCount ?? 0}
         exerciseCount={exerciseCount ?? 0}
