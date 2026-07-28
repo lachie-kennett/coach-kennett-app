@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Play, Trophy, ChevronRight, Dumbbell, CalendarDays, MessageCircle, ExternalLink } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { SessionTypeCounts } from "@/components/programs/session-type-counts";
+import { ProgressChart } from "@/components/home/progress-chart";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Profile, PersonalRecord, WorkoutLog, Exercise } from "@/lib/types";
@@ -50,6 +51,7 @@ export default async function ClientHomePage() {
     { data: assignmentData },
     { data: recentPRsData },
     { data: recentLogsData },
+    { data: progressLogsData },
   ] = await Promise.all([
     admin
       .from("client_programs")
@@ -72,6 +74,19 @@ export default async function ClientHomePage() {
       .not("completed_at", "is", null)
       .order("completed_at", { ascending: false })
       .limit(3),
+    // Every completed session's weighted sets, to chart strength over time.
+    admin
+      .from("workout_logs")
+      .select(`
+        completed_at,
+        set_logs(weight_kg, reps_completed,
+          workout_exercises(exercise_id, exercises(name)),
+          session_exercises(exercise_id, exercises(name))
+        )
+      `)
+      .eq("client_id", user.id)
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: true }),
   ]);
 
   const assignment = assignmentData as unknown as AssignmentRow | null;
@@ -79,6 +94,43 @@ export default async function ClientHomePage() {
   const recentLogs = recentLogsData as unknown as LogRow[] | null;
 
   const timezone = await getUserTimezone();
+
+  // Build estimated-1RM progression per exercise (Epley: w × (1 + reps/30)),
+  // taking the best set per exercise per session. Exercises with at least two
+  // sessions of weighted data are charted (the line fills out as they train).
+  type ProgressLog = {
+    completed_at: string;
+    set_logs: {
+      weight_kg: number | null;
+      reps_completed: number | null;
+      workout_exercises: { exercise_id: string; exercises: { name: string } | null } | null;
+      session_exercises: { exercise_id: string; exercises: { name: string } | null } | null;
+    }[] | null;
+  };
+  const progressMap = new Map<string, { id: string; name: string; points: { label: string; value: number }[] }>();
+  for (const log of (progressLogsData ?? []) as unknown as ProgressLog[]) {
+    const label = new Date(log.completed_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: timezone });
+    const bestPerEx = new Map<string, { name: string; best: number }>();
+    for (const s of log.set_logs ?? []) {
+      if (s.weight_kg == null || s.reps_completed == null || s.reps_completed <= 0) continue;
+      const ex = s.workout_exercises ?? s.session_exercises;
+      const exId = ex?.exercise_id;
+      const exName = ex?.exercises?.name;
+      if (!exId || !exName) continue;
+      const e1rm = s.weight_kg * (1 + s.reps_completed / 30);
+      const cur = bestPerEx.get(exId);
+      if (!cur || e1rm > cur.best) bestPerEx.set(exId, { name: exName, best: e1rm });
+    }
+    for (const [exId, { name, best }] of bestPerEx) {
+      let agg = progressMap.get(exId);
+      if (!agg) { agg = { id: exId, name, points: [] }; progressMap.set(exId, agg); }
+      agg.points.push({ label, value: Math.round(best) });
+    }
+  }
+  const progressSeries = [...progressMap.values()]
+    .filter((s) => s.points.length >= 2)
+    .sort((a, b) => b.points.length - a.points.length)
+    .slice(0, 8);
 
   // Mini leaderboard — sessions in last 28 days among coach's clients
   type PeerRow = { id: string; full_name: string | null };
@@ -202,6 +254,8 @@ export default async function ClientHomePage() {
           </CardContent>
         </Card>
       )}
+
+      {progressSeries.length > 0 && <ProgressChart series={progressSeries} />}
 
       {recentPRs && recentPRs.length > 0 && (
         <Card>

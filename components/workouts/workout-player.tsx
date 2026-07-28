@@ -530,6 +530,13 @@ export function WorkoutPlayer({
     + adHocExercises.reduce((sum, ah) => sum + (sets[ah.sessionExId]?.length ?? 0), 0);
   const overallProgress = totalSets > 0 ? (totalCompleted / totalSets) * 100 : 0;
 
+  // If the athlete rated any per-exercise RPEs, suggest their average as the
+  // session RPE. No ratings → no suggestion.
+  const ratedExerciseRpes = Object.values(exerciseRpe).filter((v): v is number => v != null);
+  const suggestedRpe = ratedExerciseRpes.length > 0
+    ? Math.round(ratedExerciseRpes.reduce((a, b) => a + b, 0) / ratedExerciseRpes.length)
+    : null;
+
   if (!currentPage) return null;
 
   return (
@@ -778,7 +785,7 @@ export function WorkoutPlayer({
                 Next <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (
-              <Button size="sm" className="flex-1 bg-primary" onClick={() => { saveCurrentPage(); setShowFinish(true); }}>
+              <Button size="sm" className="flex-1 bg-primary" onClick={() => { saveCurrentPage(); if (suggestedRpe != null && sessionRpe == null) setSessionRpe(suggestedRpe); setShowFinish(true); }}>
                 Finish workout
               </Button>
             )}
@@ -819,7 +826,12 @@ export function WorkoutPlayer({
             </div>
 
             <div className="space-y-1.5">
-              <p className="text-sm font-medium">Session RPE</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Session RPE</p>
+                {suggestedRpe != null && (
+                  <p className="text-xs text-muted-foreground">Avg of your ratings: {suggestedRpe}</p>
+                )}
+              </div>
               <RpeButtons value={sessionRpe} onChange={setSessionRpe} />
             </div>
 
