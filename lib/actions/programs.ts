@@ -274,6 +274,68 @@ export async function copyProgramToClient(params: {
   return {};
 }
 
+// Duplicates a client's program into a fresh copy for the SAME client — a
+// starting point for their next block. Assigns it starting the day after the
+// current block ends (or today), so the coach can just edit it.
+export async function duplicateProgramForClient(
+  sourceProgramId: string
+): Promise<{ error?: string; id?: string; clientId?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const ctx = await getCoachContext(admin, user.id);
+  if (!ctx) return { error: "Not authorized" };
+
+  const { data: src } = await admin
+    .from("programs")
+    .select("coach_id, client_id, name, description")
+    .eq("id", sourceProgramId)
+    .single();
+  const s = src as { coach_id: string; client_id: string | null; name: string; description: string | null } | null;
+  if (!s || !s.client_id || !ctxAllowsProgram(ctx, s)) return { error: "Not authorized" };
+
+  const { data: assign } = await admin
+    .from("client_programs")
+    .select("end_date")
+    .eq("program_id", sourceProgramId)
+    .eq("client_id", s.client_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const endDate = (assign as { end_date: string | null } | null)?.end_date ?? null;
+
+  const newId = await deepCopyProgram(admin, sourceProgramId, {
+    coachId: ctx.headCoachId,
+    clientId: s.client_id,
+    name: s.name,
+    description: s.description,
+  });
+  if (!newId) return { error: "Failed to duplicate program" };
+
+  // Start the day after the current block ends, else today.
+  const startDate = endDate
+    ? (() => {
+        const [y, m, d] = endDate.split("-").map(Number);
+        const dt = new Date(Date.UTC(y, m - 1, d));
+        dt.setUTCDate(dt.getUTCDate() + 1);
+        return dt.toISOString().split("T")[0];
+      })()
+    : new Date().toISOString().split("T")[0];
+
+  const { error } = await admin.from("client_programs").insert({
+    client_id: s.client_id,
+    program_id: newId,
+    start_date: startDate,
+    end_date: null,
+    assigned_by: user.id,
+    is_active: true,
+  } as never);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/clients/${s.client_id}`);
+  return { id: newId, clientId: s.client_id };
+}
+
 // Updates the start/end dates (i.e. the length) of a client's program assignment.
 export async function updateAssignmentDates(params: {
   clientId: string;

@@ -10,6 +10,7 @@ import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { ProgramLengthEditor } from "@/components/programs/program-length-editor";
 import { SaveAsTemplateButton } from "@/components/programs/save-as-template-button";
 import { CopyProgramDialog } from "@/components/programs/copy-program-dialog";
+import { DuplicateProgramButton } from "@/components/programs/duplicate-program-button";
 import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
 import { getCoachContext, canAccessClient } from "@/lib/coach-context";
 import { cn } from "@/lib/utils";
@@ -134,6 +135,7 @@ export default async function ClientProgramPage({
           <Badge variant={assignment.is_active ? "default" : "secondary"}>
             {assignment.is_active ? "Active" : "Past"}
           </Badge>
+          <DuplicateProgramButton programId={programId} />
           {!ctx.isAssistant && <SaveAsTemplateButton programId={programId} />}
           <CopyProgramDialog
             sourceProgramId={programId}
