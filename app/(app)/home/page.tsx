@@ -9,12 +9,18 @@ import { Progress } from "@/components/ui/progress";
 import { Play, Trophy, ChevronRight, Dumbbell, CalendarDays, MessageCircle, ExternalLink } from "lucide-react";
 import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { SessionTypeCounts } from "@/components/programs/session-type-counts";
-import { ProgressChart } from "@/components/home/progress-chart";
+import { VolumeChart } from "@/components/home/progress-chart";
+import { WorkoutDayList } from "@/components/workouts/workout-day-list";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Profile, PersonalRecord, WorkoutLog, Exercise } from "@/lib/types";
 
-type WorkoutWithExercises = { id: string; name: string; day_order: number; session_type: string | null; workout_exercises: { id: string }[] };
+type WeDetail = {
+  id: string; block_type: string; sets: number; reps: string; weight_kg: number | null;
+  rest_seconds: number; work_seconds: number | null; intensity: string | null;
+  superset_group: string | null; order_index: number; exercises: { name: string } | null;
+};
+type WorkoutWithExercises = { id: string; name: string; day_order: number; session_type: string | null; workout_exercises: WeDetail[] };
 type ProgramWithWorkouts = { id: string; name: string; program_workouts: WorkoutWithExercises[] };
 type AssignmentRow = { start_date: string; end_date: string | null; programs: ProgramWithWorkouts | null };
 type PRRow = Pick<PersonalRecord, "id" | "weight_kg" | "reps"> & { exercises: Pick<Exercise, "name"> | null };
@@ -55,7 +61,7 @@ export default async function ClientHomePage() {
   ] = await Promise.all([
     admin
       .from("client_programs")
-      .select("start_date, end_date, programs(id, name, program_workouts(id, name, day_order, session_type, workout_exercises(id)))")
+      .select("start_date, end_date, programs(id, name, program_workouts(id, name, day_order, session_type, workout_exercises(id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, order_index, exercises(name))))")
       .eq("client_id", user.id)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
@@ -74,16 +80,10 @@ export default async function ClientHomePage() {
       .not("completed_at", "is", null)
       .order("completed_at", { ascending: false })
       .limit(3),
-    // Every completed session's weighted sets, to chart strength over time.
+    // Every completed session's weighted sets, to chart total volume over time.
     admin
       .from("workout_logs")
-      .select(`
-        completed_at,
-        set_logs(weight_kg, reps_completed,
-          workout_exercises(exercise_id, exercises(name)),
-          session_exercises(exercise_id, exercises(name))
-        )
-      `)
+      .select("completed_at, set_logs(weight_kg, reps_completed)")
       .eq("client_id", user.id)
       .not("completed_at", "is", null)
       .order("completed_at", { ascending: true }),
@@ -95,42 +95,24 @@ export default async function ClientHomePage() {
 
   const timezone = await getUserTimezone();
 
-  // Build estimated-1RM progression per exercise (Epley: w × (1 + reps/30)),
-  // taking the best set per exercise per session. Exercises with at least two
-  // sessions of weighted data are charted (the line fills out as they train).
+  // Total training volume (Σ weight × reps) per completed session, over time.
   type ProgressLog = {
     completed_at: string;
-    set_logs: {
-      weight_kg: number | null;
-      reps_completed: number | null;
-      workout_exercises: { exercise_id: string; exercises: { name: string } | null } | null;
-      session_exercises: { exercise_id: string; exercises: { name: string } | null } | null;
-    }[] | null;
+    set_logs: { weight_kg: number | null; reps_completed: number | null }[] | null;
   };
-  const progressMap = new Map<string, { id: string; name: string; points: { label: string; value: number }[] }>();
+  const volumePoints: { label: string; value: number }[] = [];
   for (const log of (progressLogsData ?? []) as unknown as ProgressLog[]) {
-    const label = new Date(log.completed_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: timezone });
-    const bestPerEx = new Map<string, { name: string; best: number }>();
+    let vol = 0;
     for (const s of log.set_logs ?? []) {
-      if (s.weight_kg == null || s.reps_completed == null || s.reps_completed <= 0) continue;
-      const ex = s.workout_exercises ?? s.session_exercises;
-      const exId = ex?.exercise_id;
-      const exName = ex?.exercises?.name;
-      if (!exId || !exName) continue;
-      const e1rm = s.weight_kg * (1 + s.reps_completed / 30);
-      const cur = bestPerEx.get(exId);
-      if (!cur || e1rm > cur.best) bestPerEx.set(exId, { name: exName, best: e1rm });
+      if (s.weight_kg != null && s.reps_completed != null && s.reps_completed > 0) {
+        vol += s.weight_kg * s.reps_completed;
+      }
     }
-    for (const [exId, { name, best }] of bestPerEx) {
-      let agg = progressMap.get(exId);
-      if (!agg) { agg = { id: exId, name, points: [] }; progressMap.set(exId, agg); }
-      agg.points.push({ label, value: Math.round(best) });
+    if (vol > 0) {
+      const label = new Date(log.completed_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: timezone });
+      volumePoints.push({ label, value: Math.round(vol) });
     }
   }
-  const progressSeries = [...progressMap.values()]
-    .filter((s) => s.points.length >= 2)
-    .sort((a, b) => b.points.length - a.points.length)
-    .slice(0, 8);
 
   // Mini leaderboard — sessions in last 28 days among coach's clients
   type PeerRow = { id: string; full_name: string | null };
@@ -219,31 +201,19 @@ export default async function ClientHomePage() {
           )}
 
           <CardContent className="p-0">
-            {workouts.map((w) => (
-              <div
-                key={w.id}
-                className="flex items-center justify-between px-6 py-3 border-t border-border hover:bg-secondary/50 transition-colors"
-              >
-                <Link href={`/workouts/${w.id}`} className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/20">
-                    <Dumbbell className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate">{w.name}</p>
-                      <SessionTypeBadge type={w.session_type} className="shrink-0" />
-                    </div>
-                    <p className="text-xs text-muted-foreground">{w.workout_exercises.length} exercises</p>
-                  </div>
-                </Link>
-                <Link
-                  href={`/workouts/${w.id}/start`}
-                  className={cn(buttonVariants({ size: "sm" }), "ml-3 h-8 shrink-0 gap-1.5")}
-                >
-                  <Play className="h-3.5 w-3.5" /> Start
-                </Link>
-              </div>
-            ))}
+            <WorkoutDayList
+              days={workouts.map((w) => ({
+                id: w.id,
+                name: w.name,
+                session_type: w.session_type,
+                exercises: (w.workout_exercises ?? []).map((e) => ({
+                  id: e.id, name: e.exercises?.name ?? "Exercise", block_type: e.block_type,
+                  sets: e.sets, reps: e.reps, weight_kg: e.weight_kg, rest_seconds: e.rest_seconds,
+                  work_seconds: e.work_seconds, intensity: e.intensity, superset_group: e.superset_group,
+                  order_index: e.order_index,
+                })),
+              }))}
+            />
           </CardContent>
         </Card>
       ) : (
@@ -255,7 +225,7 @@ export default async function ClientHomePage() {
         </Card>
       )}
 
-      {progressSeries.length > 0 && <ProgressChart series={progressSeries} />}
+      {volumePoints.length >= 2 && <VolumeChart points={volumePoints} />}
 
       {recentPRs && recentPRs.length > 0 && (
         <Card>

@@ -6,12 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Play, Dumbbell } from "lucide-react";
-import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { SessionTypeCounts } from "@/components/programs/session-type-counts";
+import { WorkoutDayList } from "@/components/workouts/workout-day-list";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
-type WorkoutWithExercises = { id: string; name: string; day_order: number; session_type: string | null; workout_exercises: { id: string }[] };
+type WeDetail = {
+  id: string; block_type: string; sets: number; reps: string; weight_kg: number | null;
+  rest_seconds: number; work_seconds: number | null; intensity: string | null;
+  superset_group: string | null; order_index: number; exercises: { name: string } | null;
+};
+type WorkoutWithExercises = { id: string; name: string; day_order: number; session_type: string | null; workout_exercises: WeDetail[] };
 type ProgramWithWorkouts = { id: string; name: string; program_workouts: WorkoutWithExercises[] };
 type AssignmentRow = { id: string; is_active: boolean; start_date: string; programs: ProgramWithWorkouts | null };
 
@@ -26,7 +31,7 @@ export default async function WorkoutsPage() {
 
   const { data: assignmentsData } = await admin
     .from("client_programs")
-    .select("id, is_active, start_date, programs(id, name, program_workouts(id, name, day_order, session_type, workout_exercises(id)))")
+    .select("id, is_active, start_date, programs(id, name, program_workouts(id, name, day_order, session_type, workout_exercises(id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, order_index, exercises(name))))")
     .eq("client_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -66,25 +71,19 @@ export default async function WorkoutsPage() {
                   )}
                 </CardHeader>
                 <CardContent className="p-0">
-                  {workouts.map((w) => (
-                    <div key={w.id} className="flex items-center justify-between px-6 py-3 border-t border-border first:border-0">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
-                          <Dumbbell className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium">{w.name}</p>
-                            <SessionTypeBadge type={w.session_type} className="shrink-0" />
-                          </div>
-                          <p className="text-xs text-muted-foreground">{w.workout_exercises.length} exercises</p>
-                        </div>
-                      </div>
-                      <Link href={`/workouts/${w.id}/start`} className={cn(buttonVariants({ size: "sm" }), "h-8 px-3 gap-1.5")}>
-                        <Play className="h-3.5 w-3.5" /> Start
-                      </Link>
-                    </div>
-                  ))}
+                  <WorkoutDayList
+                    days={workouts.map((w) => ({
+                      id: w.id,
+                      name: w.name,
+                      session_type: w.session_type,
+                      exercises: (w.workout_exercises ?? []).map((e) => ({
+                        id: e.id, name: e.exercises?.name ?? "Exercise", block_type: e.block_type,
+                        sets: e.sets, reps: e.reps, weight_kg: e.weight_kg, rest_seconds: e.rest_seconds,
+                        work_seconds: e.work_seconds, intensity: e.intensity, superset_group: e.superset_group,
+                        order_index: e.order_index,
+                      })),
+                    }))}
+                  />
                 </CardContent>
               </Card>
             );
