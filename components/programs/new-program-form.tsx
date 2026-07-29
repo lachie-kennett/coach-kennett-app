@@ -37,7 +37,7 @@ export function NewProgramForm({
   const [loading, setLoading] = useState(false);
 
   const weeksNum = parseInt(weeks, 10);
-  const endDate = clientId && weeks && weeksNum > 0 ? addDays(startDate, weeksNum * 7) : null;
+  const endDate = clientId && weeks && weeksNum > 0 ? addDays(startDate, weeksNum * 7 - 1) : null;
   const endLabel = endDate
     ? new Date(endDate).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })
     : null;

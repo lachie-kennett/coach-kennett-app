@@ -47,7 +47,7 @@ export function ProgramLengthEditor({
   const changed = startDate !== initialStart || weeks !== initialWeeks;
 
   const weeksNum = parseInt(weeks, 10);
-  const endDate = weeks && weeksNum > 0 ? addDays(startDate, weeksNum * 7) : null;
+  const endDate = weeks && weeksNum > 0 ? addDays(startDate, weeksNum * 7 - 1) : null;
   const endLabel = endDate
     ? new Date(endDate).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })
     : null;

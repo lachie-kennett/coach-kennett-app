@@ -44,7 +44,7 @@ export function CopyProgramDialog({
   const [saving, setSaving] = useState(false);
 
   const weeksNum = parseInt(weeks, 10);
-  const endDate = weeks && weeksNum > 0 ? addDays(startDate, weeksNum * 7) : null;
+  const endDate = weeks && weeksNum > 0 ? addDays(startDate, weeksNum * 7 - 1) : null;
 
   async function handleCopy() {
     if (!clientId) return;
