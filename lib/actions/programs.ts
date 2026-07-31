@@ -823,6 +823,43 @@ export async function reorderWorkoutExercises(params: {
   return {};
 }
 
+// Assigns exercises to the warm-up or main section of a day and orders them —
+// warm-up rows come first (lower order_index) and are flagged is_warmup.
+export async function setWorkoutSections(params: {
+  workoutId: string;
+  warmupIds: string[];
+  mainIds: string[];
+}): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  const programId = await ownedProgramForWorkout(admin, params.workoutId, user.id);
+  if (!programId) return { error: "Not authorized" };
+
+  const ordered = [
+    ...params.warmupIds.map((id) => ({ id, isWarmup: true })),
+    ...params.mainIds.map((id) => ({ id, isWarmup: false })),
+  ];
+  for (let i = 0; i < ordered.length; i++) {
+    const { error } = await admin
+      .from("workout_exercises")
+      .update({ order_index: i, is_warmup: ordered[i].isWarmup } as never)
+      .eq("id", ordered[i].id)
+      .eq("workout_id", params.workoutId);
+    if (error) return { error: error.message };
+  }
+
+  const { data: rows } = await admin
+    .from("workout_exercises")
+    .select("id, order_index, superset_group")
+    .eq("workout_id", params.workoutId);
+  const err = await reletterSupersets(admin, (rows ?? []) as WeGroupRow[], (we) => we.superset_group?.toUpperCase() ?? null);
+  if (err) return { error: err };
+
+  revalidatePath(`/programs/${programId}`);
+  return {};
+}
+
 // Reorders the days (workouts) within a program by writing a fresh, sequential
 // day_order for each — also fixes any duplicate day_order values.
 export async function reorderWorkouts(params: {

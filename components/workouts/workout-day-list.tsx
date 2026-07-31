@@ -20,6 +20,7 @@ export type DayExercise = {
   intensity: string | null;
   superset_group: string | null;
   order_index: number;
+  is_warmup?: boolean;
 };
 export type WorkoutDay = {
   id: string;
@@ -67,15 +68,31 @@ function DayRow({ day }: { day: WorkoutDay }) {
           {sorted.length === 0 ? (
             <p className="text-xs text-muted-foreground">No exercises in this session yet.</p>
           ) : (
-            sorted.map((e) => (
-              <div key={e.id} className="flex items-start justify-between gap-3 text-xs">
-                <span className="font-medium min-w-0">
-                  {e.superset_group && <span className="text-primary mr-1">{e.superset_group}</span>}
-                  {e.name}
-                </span>
-                <span className="text-muted-foreground text-right shrink-0 tabular-nums">{exerciseLine(e)}</span>
-              </div>
-            ))
+            (() => {
+              const warm = sorted.filter((e) => e.is_warmup);
+              const main = sorted.filter((e) => !e.is_warmup);
+              const row = (e: DayExercise) => (
+                <div key={e.id} className="flex items-start justify-between gap-3 text-xs">
+                  <span className="font-medium min-w-0">
+                    {e.superset_group && <span className="text-primary mr-1">{e.superset_group}</span>}
+                    {e.name}
+                  </span>
+                  <span className="text-muted-foreground text-right shrink-0 tabular-nums">{exerciseLine(e)}</span>
+                </div>
+              );
+              return (
+                <>
+                  {warm.length > 0 && (
+                    <>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">Warm-up</p>
+                      {warm.map(row)}
+                      {main.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">Main</p>}
+                    </>
+                  )}
+                  {main.map(row)}
+                </>
+              );
+            })()
           )}
         </div>
       )}

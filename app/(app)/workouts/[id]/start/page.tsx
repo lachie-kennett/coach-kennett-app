@@ -11,7 +11,7 @@ type WorkoutExercise = {
   id: string; block_type: string; sets: number; reps: string; weight_kg: number | null;
   rest_seconds: number; work_seconds: number | null; intensity: string | null;
   superset_group: string | null; notes: string | null;
-  order_index: number; exercises: Exercise;
+  order_index: number; is_warmup: boolean; exercises: Exercise;
   conditioning_weeks?: ConditioningWeek[];
 };
 type WorkoutRow = { id: string; name: string; program_id: string; workout_exercises: WorkoutExercise[] };
@@ -57,7 +57,7 @@ export default async function StartWorkoutPage({
     .select(`
       id, name, program_id,
       workout_exercises (
-        id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, notes, order_index,
+        id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, notes, order_index, is_warmup,
         exercises (id, name, description, youtube_url, muscle_groups),
         conditioning_weeks (week_number, sets, reps, work_seconds, rest_seconds, intensity)
       )

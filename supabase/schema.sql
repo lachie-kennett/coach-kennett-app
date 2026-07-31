@@ -62,7 +62,8 @@ create table workout_exercises (
   intensity text,         -- conditioning: zone / pace / intensity
   order_index integer not null default 0,
   superset_group text,
-  notes text
+  notes text,
+  is_warmup boolean not null default false  -- part of the day's warm-up section
 );
 
 create table client_programs (

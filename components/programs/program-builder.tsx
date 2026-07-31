@@ -28,8 +28,8 @@ import {
   deleteWorkoutExercise,
   createSuperset,
   dissolveSuperset,
-  reorderWorkoutExercises,
   reorderWorkouts,
+  setWorkoutSections,
   saveSessionAsTemplate,
   addSessionTemplateToProgram,
 } from "@/lib/actions/programs";
@@ -47,7 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2, Pencil, Clock, BookMarked } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Search, Link2, Pencil, Clock, BookMarked, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -72,6 +72,7 @@ interface WorkoutExercise {
   order_index: number;
   superset_group: string | null;
   notes: string | null;
+  is_warmup: boolean;
   exercises: Exercise;
   conditioning_weeks?: ConditioningWeek[];
 }
@@ -338,6 +339,7 @@ function SortableExerciseRow({
   onDissolveSuperset,
   onEditExercise,
   onDeleteExercise,
+  onToggleWarmup,
 }: {
   we: WorkoutExercise;
   isSelected: boolean;
@@ -345,6 +347,7 @@ function SortableExerciseRow({
   onDissolveSuperset: (group: string) => void;
   onEditExercise: (we: WorkoutExercise) => void;
   onDeleteExercise: (id: string) => void;
+  onToggleWarmup: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: we.id });
   const style = {
@@ -412,6 +415,15 @@ function SortableExerciseRow({
       <Button
         size="sm"
         variant="ghost"
+        className={cn("h-7 w-7 p-0 shrink-0", we.is_warmup ? "text-amber-600" : "text-muted-foreground hover:text-amber-600")}
+        onClick={(e) => { e.stopPropagation(); onToggleWarmup(we.id); }}
+        title={we.is_warmup ? "Move to main" : "Move to warm-up"}
+      >
+        <Flame className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
         className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
         onClick={(e) => { e.stopPropagation(); onEditExercise(we); }}
         title="Edit sets, reps…"
@@ -463,25 +475,47 @@ function WorkoutCard({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  async function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = items.findIndex((we) => we.id === active.id);
-    const newIndex = items.findIndex((we) => we.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
+  const warmupItems = items.filter((i) => i.is_warmup);
+  const mainItems = items.filter((i) => !i.is_warmup);
 
-    const reordered = arrayMove(items, oldIndex, newIndex);
-    setItems(reordered); // optimistic
-    const { error } = await reorderWorkoutExercises({
+  async function persistSections(warmup: WorkoutExercise[], main: WorkoutExercise[]) {
+    const next = [
+      ...warmup.map((w) => ({ ...w, is_warmup: true })),
+      ...main.map((m) => ({ ...m, is_warmup: false })),
+    ];
+    setItems(next); // optimistic
+    const { error } = await setWorkoutSections({
       workoutId: workout.id,
-      orderedIds: reordered.map((we) => we.id),
+      warmupIds: warmup.map((w) => w.id),
+      mainIds: main.map((m) => m.id),
     });
-    if (error) {
-      toast.error(error);
-      setItems(sorted); // revert
-      return;
-    }
+    if (error) { toast.error(error); setItems(sorted); return; }
     onUpdate();
+  }
+
+  function makeSectionDragEnd(section: WorkoutExercise[], other: WorkoutExercise[], warmup: boolean) {
+    return (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = section.findIndex((we) => we.id === active.id);
+      const newIndex = section.findIndex((we) => we.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const reordered = arrayMove(section, oldIndex, newIndex);
+      if (warmup) persistSections(reordered, other);
+      else persistSections(other, reordered);
+    };
+  }
+
+  // Move an exercise between the warm-up and main sections (appended to the end
+  // of the target section).
+  function toggleWarmup(id: string) {
+    if (warmupItems.some((i) => i.id === id)) {
+      const we = warmupItems.find((i) => i.id === id)!;
+      persistSections(warmupItems.filter((i) => i.id !== id), [...mainItems, we]);
+    } else {
+      const we = mainItems.find((i) => i.id === id)!;
+      persistSections([...warmupItems, we], mainItems.filter((i) => i.id !== id));
+    }
   }
 
   function toggleSelect(id: string) {
@@ -633,23 +667,42 @@ function WorkoutCard({
             </Select>
           </div>
           {items.length > 0 ? (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={items.map((we) => we.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-1.5 mb-2">
-                  {items.map((we) => (
-                    <SortableExerciseRow
-                      key={we.id}
-                      we={we}
-                      isSelected={selected.has(we.id)}
-                      onToggleSelect={toggleSelect}
-                      onDissolveSuperset={handleDissolveSuperset}
-                      onEditExercise={setEditingWe}
-                      onDeleteExercise={handleDeleteExercise}
-                    />
-                  ))}
+            <div className="space-y-2 mb-2">
+              {warmupItems.length > 0 && (
+                <div>
+                  <p className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-amber-600">
+                    <Flame className="h-3 w-3" /> Warm-up
+                  </p>
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={makeSectionDragEnd(warmupItems, mainItems, true)}>
+                    <SortableContext items={warmupItems.map((we) => we.id)} strategy={verticalListSortingStrategy}>
+                      <div className="space-y-1.5">
+                        {warmupItems.map((we) => (
+                          <SortableExerciseRow key={we.id} we={we} isSelected={selected.has(we.id)}
+                            onToggleSelect={toggleSelect} onDissolveSuperset={handleDissolveSuperset}
+                            onEditExercise={setEditingWe} onDeleteExercise={handleDeleteExercise} onToggleWarmup={toggleWarmup} />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 </div>
-              </SortableContext>
-            </DndContext>
+              )}
+              <div>
+                {warmupItems.length > 0 && mainItems.length > 0 && (
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Main</p>
+                )}
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={makeSectionDragEnd(mainItems, warmupItems, false)}>
+                  <SortableContext items={mainItems.map((we) => we.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-1.5">
+                      {mainItems.map((we) => (
+                        <SortableExerciseRow key={we.id} we={we} isSelected={selected.has(we.id)}
+                          onToggleSelect={toggleSelect} onDissolveSuperset={handleDissolveSuperset}
+                          onEditExercise={setEditingWe} onDeleteExercise={handleDeleteExercise} onToggleWarmup={toggleWarmup} />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground mb-2">No exercises yet.</p>
           )}

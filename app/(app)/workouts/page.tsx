@@ -14,7 +14,7 @@ import type { Profile } from "@/lib/types";
 type WeDetail = {
   id: string; block_type: string; sets: number; reps: string; weight_kg: number | null;
   rest_seconds: number; work_seconds: number | null; intensity: string | null;
-  superset_group: string | null; order_index: number; exercises: { name: string } | null;
+  superset_group: string | null; order_index: number; is_warmup: boolean; exercises: { name: string } | null;
 };
 type WorkoutWithExercises = { id: string; name: string; day_order: number; session_type: string | null; workout_exercises: WeDetail[] };
 type ProgramWithWorkouts = { id: string; name: string; program_workouts: WorkoutWithExercises[] };
@@ -31,7 +31,7 @@ export default async function WorkoutsPage() {
 
   const { data: assignmentsData } = await admin
     .from("client_programs")
-    .select("id, is_active, start_date, programs(id, name, program_workouts(id, name, day_order, session_type, workout_exercises(id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, order_index, exercises(name))))")
+    .select("id, is_active, start_date, programs(id, name, program_workouts(id, name, day_order, session_type, workout_exercises(id, block_type, sets, reps, weight_kg, rest_seconds, work_seconds, intensity, superset_group, order_index, is_warmup, exercises(name))))")
     .eq("client_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -80,7 +80,7 @@ export default async function WorkoutsPage() {
                         id: e.id, name: e.exercises?.name ?? "Exercise", block_type: e.block_type,
                         sets: e.sets, reps: e.reps, weight_kg: e.weight_kg, rest_seconds: e.rest_seconds,
                         work_seconds: e.work_seconds, intensity: e.intensity, superset_group: e.superset_group,
-                        order_index: e.order_index,
+                        order_index: e.order_index, is_warmup: e.is_warmup,
                       })),
                     }))}
                   />

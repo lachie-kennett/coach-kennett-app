@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { VideoPreviewButton } from "@/components/workouts/video-preview-button";
-import { Check, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Trophy, X, Timer, Plus, Minus, Search, Dumbbell, Repeat } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Trophy, X, Timer, Plus, Minus, Search, Dumbbell, Repeat, Flame } from "lucide-react";
 import { toast } from "sonner";
 import { conditioningSummary } from "@/lib/workout-format";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ interface WorkoutExercise {
   id: string; block_type: string; sets: number; reps: string; weight_kg: number | null;
   rest_seconds: number; work_seconds: number | null; intensity: string | null;
   superset_group: string | null; notes: string | null;
-  order_index: number; exercises: Exercise;
+  order_index: number; is_warmup?: boolean; exercises: Exercise;
 }
 interface Workout { id: string; name: string; workout_exercises: WorkoutExercise[] }
 
@@ -199,7 +199,7 @@ export function WorkoutPlayer({
     id: string; exercise: Exercise; isAdHoc: boolean; blockType: string;
     supersetGroup: string | null; sets: number; reps: string; weightKg: number | null;
     restSeconds: number; workSeconds: number | null; intensity: string | null;
-    notes: string | null; targetSets: number;
+    notes: string | null; targetSets: number; isWarmup: boolean;
   };
   const programPages: BlockItem[][] = (() => {
     const sorted = [...exercises].sort((a, b) => a.order_index - b.order_index);
@@ -207,7 +207,7 @@ export function WorkoutPlayer({
       id: w.id, exercise: w.exercises, isAdHoc: false, blockType: w.block_type,
       supersetGroup: w.superset_group, sets: w.sets, reps: w.reps, weightKg: w.weight_kg,
       restSeconds: w.rest_seconds, workSeconds: w.work_seconds, intensity: w.intensity,
-      notes: w.notes, targetSets: w.sets,
+      notes: w.notes, targetSets: w.sets, isWarmup: !!w.is_warmup,
     });
     const pages: BlockItem[][] = [];
     const seen = new Set<string>();
@@ -226,7 +226,7 @@ export function WorkoutPlayer({
   const adHocPages: BlockItem[][] = adHocExercises.map((ah) => [{
     id: ah.sessionExId, exercise: ah.exercise, isAdHoc: true, blockType: "strength",
     supersetGroup: null, sets: ah.sets ?? 3, reps: "", weightKg: null, restSeconds: 90,
-    workSeconds: null, intensity: null, notes: null, targetSets: ah.sets ?? 3,
+    workSeconds: null, intensity: null, notes: null, targetSets: ah.sets ?? 3, isWarmup: false,
   }]);
   const pages = [...programPages, ...adHocPages];
   const totalPages = pages.length;
@@ -565,6 +565,11 @@ export function WorkoutPlayer({
 
         {/* Exercise card(s) — a superset renders all its exercises together */}
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
+          {currentPage[0]?.isWarmup && (
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-600">
+              <Flame className="h-3.5 w-3.5" /> Warm-up
+            </div>
+          )}
           {currentPage.length > 1 && (
             <div className="flex items-center gap-2">
               <Badge className="text-xs">{currentPage[0].supersetGroup}</Badge>

@@ -139,6 +139,7 @@ export type Database = {
           order_index: number;
           superset_group: string | null;
           notes: string | null;
+          is_warmup: boolean;
         };
         Insert: {
           id?: string;
@@ -154,6 +155,7 @@ export type Database = {
           order_index?: number;
           superset_group?: string | null;
           notes?: string | null;
+          is_warmup?: boolean;
         };
         Update: {
           block_type?: string;
@@ -166,6 +168,7 @@ export type Database = {
           order_index?: number;
           superset_group?: string | null;
           notes?: string | null;
+          is_warmup?: boolean;
         };
         Relationships: [];
       };
