@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { WorkoutPlayer } from "@/components/workouts/workout-player";
+import { buildExerciseHistory } from "@/lib/exercise-history";
 
 type SessionEx = {
   id: string;
@@ -52,10 +53,13 @@ export default async function CustomSessionPlayerPage({
     sets: se.sets,
   }));
 
+  const exerciseIds = [...new Set(sessionExercises.map((se) => se.exercises?.id).filter(Boolean) as string[])];
+  const exerciseHistory = await buildExerciseHistory(admin, user.id, exerciseIds);
+
   return (
     <WorkoutPlayer
       workout={{ id: "", name: "Custom session", workout_exercises: [] }}
-      previousSessions={[]}
+      exerciseHistory={exerciseHistory}
       timezone={timezone}
       freeSessionLogId={logId}
       initialAdHocExercises={initialAdHocExercises}

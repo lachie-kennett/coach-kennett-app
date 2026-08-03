@@ -5,6 +5,7 @@ import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { WorkoutPlayer } from "@/components/workouts/workout-player";
 import { currentProgramWeek, resolveConditioningWeek, type ConditioningWeek } from "@/lib/workout-format";
 import { getCoachContext, canAccessClient } from "@/lib/coach-context";
+import { buildExerciseHistory } from "@/lib/exercise-history";
 
 type Exercise = { id: string; name: string; description: string | null; youtube_url: string | null; muscle_groups: string[] };
 type WorkoutExercise = {
@@ -15,10 +16,6 @@ type WorkoutExercise = {
   conditioning_weeks?: ConditioningWeek[];
 };
 type WorkoutRow = { id: string; name: string; program_id: string; workout_exercises: WorkoutExercise[] };
-
-type SetLog = { workout_exercise_id: string; set_number: number; weight_kg: number | null; reps_completed: number | null };
-type ExerciseLog = { workout_exercise_id: string; notes: string | null; rpe: number | null };
-type PreviousSession = { id: string; started_at: string; set_logs: SetLog[]; exercise_session_logs: ExerciseLog[] };
 
 export default async function StartWorkoutPage({
   params,
@@ -90,26 +87,16 @@ export default async function StartWorkoutPage({
     return we;
   });
 
-  const { data: prevLogsData } = await admin
-    .from("workout_logs")
-    .select(`
-      id, started_at,
-      set_logs (workout_exercise_id, set_number, weight_kg, reps_completed),
-      exercise_session_logs (workout_exercise_id, notes, rpe)
-    `)
-    .eq("client_id", historyClientId)
-    .eq("workout_id", id)
-    .not("completed_at", "is", null)
-    .order("completed_at", { ascending: false })
-    .limit(5);
-
-  const previousSessions = (prevLogsData ?? []) as unknown as PreviousSession[];
+  // Per-exercise weight history, keyed by exercise id so it carries across
+  // programs (not just this workout day).
+  const exerciseIds = [...new Set(sorted.map((we) => we.exercises?.id).filter(Boolean) as string[])];
+  const exerciseHistory = await buildExerciseHistory(admin, historyClientId, exerciseIds);
   const timezone = await getUserTimezone();
 
   return (
     <WorkoutPlayer
       workout={{ ...workout, workout_exercises: resolved }}
-      previousSessions={previousSessions}
+      exerciseHistory={exerciseHistory}
       timezone={timezone}
       forClient={forClient}
     />

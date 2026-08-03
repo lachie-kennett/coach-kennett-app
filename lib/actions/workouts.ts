@@ -234,6 +234,27 @@ export async function cancelWorkoutLog(workoutLogId: string): Promise<void> {
   await admin.from("workout_logs").delete().eq("id", workoutLogId);
 }
 
+// When a session is resumed after a long break, its original started_at would
+// make the recorded duration absurd (e.g. 55 hours). If the log is stale
+// (started >3h ago) and not finished, reset the clock to now so the duration
+// reflects this sitting.
+export async function resumeStaleLog(workoutLogId: string): Promise<void> {
+  const user = await getSessionUser();
+  if (!user) return;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("workout_logs")
+    .select("started_at, completed_at, client_id")
+    .eq("id", workoutLogId)
+    .single();
+  const log = data as { started_at: string; completed_at: string | null; client_id: string } | null;
+  if (!log || log.completed_at) return;
+  const ageMs = Date.now() - new Date(log.started_at).getTime();
+  if (ageMs > 3 * 60 * 60 * 1000) {
+    await admin.from("workout_logs").update({ started_at: new Date().toISOString() } as never).eq("id", workoutLogId);
+  }
+}
+
 export async function startCustomSession(
   exercises: { exerciseId: string; sets: number }[]
 ): Promise<string> {

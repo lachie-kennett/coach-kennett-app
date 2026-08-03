@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { startWorkoutLog, savePageSets, saveExerciseLog, finishWorkoutLog, cancelWorkoutLog, addSessionExercise, getCoachExercisesForLog } from "@/lib/actions/workouts";
+import { startWorkoutLog, savePageSets, saveExerciseLog, finishWorkoutLog, cancelWorkoutLog, addSessionExercise, getCoachExercisesForLog, resumeStaleLog } from "@/lib/actions/workouts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { VideoPreviewButton } from "@/components/workouts/video-preview-button";
 import { Check, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Trophy, X, Timer, Plus, Minus, Search, Dumbbell, Repeat, Flame } from "lucide-react";
 import { toast } from "sonner";
 import { conditioningSummary } from "@/lib/workout-format";
+import type { ExerciseHistory, HistSession } from "@/lib/exercise-history";
 import { cn } from "@/lib/utils";
 
 interface Exercise {
@@ -26,10 +27,6 @@ interface WorkoutExercise {
   order_index: number; is_warmup?: boolean; exercises: Exercise;
 }
 interface Workout { id: string; name: string; workout_exercises: WorkoutExercise[] }
-
-interface SetLog { workout_exercise_id: string; set_number: number; weight_kg: number | null; reps_completed: number | null }
-interface ExerciseLog { workout_exercise_id: string; notes: string | null; rpe: number | null }
-interface PreviousSession { id: string; started_at: string; set_logs: SetLog[]; exercise_session_logs: ExerciseLog[] }
 
 interface SetEntry { reps: string; weight: string; completed: boolean; isPR: boolean }
 
@@ -86,10 +83,10 @@ function formatDate(iso: string, timezone = "Australia/Melbourne") {
   return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: timezone });
 }
 
-function SessionHistory({ weId, sessions, timezone }: { weId: string; sessions: PreviousSession[]; timezone: string }) {
+// Weight history for one exercise, carried across programs (keyed by exercise).
+function SessionHistory({ sessions, timezone }: { sessions: HistSession[]; timezone: string }) {
   const [open, setOpen] = useState(false);
-  const relevant = sessions.filter((s) => s.set_logs.some((sl) => sl.workout_exercise_id === weId));
-  if (relevant.length === 0) return null;
+  if (sessions.length === 0) return null;
 
   return (
     <div className="mt-2">
@@ -99,34 +96,22 @@ function SessionHistory({ weId, sessions, timezone }: { weId: string; sessions: 
         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        History ({relevant.length} session{relevant.length !== 1 ? "s" : ""})
+        History ({sessions.length} session{sessions.length !== 1 ? "s" : ""})
       </button>
       {open && (
         <div className="mt-2 space-y-2 pl-1">
-          {relevant.map((session) => {
-            const sets = session.set_logs
-              .filter((sl) => sl.workout_exercise_id === weId)
-              .sort((a, b) => a.set_number - b.set_number);
-            const exLog = session.exercise_session_logs.find((el) => el.workout_exercise_id === weId);
-            return (
-              <div key={session.id} className="text-xs border-l-2 border-border pl-2">
-                <p className="font-medium text-muted-foreground">{formatDate(session.started_at, timezone)}</p>
-                <div className="space-y-0.5 mt-0.5">
-                  {sets.map((sl) => (
-                    <p key={sl.set_number} className="text-muted-foreground">
-                      Set {sl.set_number}: {sl.weight_kg ? `${sl.weight_kg}kg` : "—"} × {sl.reps_completed ?? "—"}
-                    </p>
-                  ))}
-                </div>
-                {(exLog?.notes || exLog?.rpe) && (
-                  <div className="mt-1 flex items-center gap-2">
-                    {exLog.rpe && <span className="font-medium">RPE {exLog.rpe}</span>}
-                    {exLog.notes && <span className="text-muted-foreground italic">{exLog.notes}</span>}
-                  </div>
-                )}
+          {sessions.map((session, i) => (
+            <div key={i} className="text-xs border-l-2 border-border pl-2">
+              <p className="font-medium text-muted-foreground">{formatDate(session.date, timezone)}</p>
+              <div className="space-y-0.5 mt-0.5">
+                {session.sets.map((sl) => (
+                  <p key={sl.setNumber} className="text-muted-foreground">
+                    Set {sl.setNumber}: {sl.weight ? `${sl.weight}kg` : "—"} × {sl.reps ?? "—"}
+                  </p>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -135,14 +120,14 @@ function SessionHistory({ weId, sessions, timezone }: { weId: string; sessions: 
 
 export function WorkoutPlayer({
   workout,
-  previousSessions,
+  exerciseHistory = {},
   timezone = "Australia/Melbourne",
   forClient,
   freeSessionLogId,
   initialAdHocExercises = [],
 }: {
   workout: Workout;
-  previousSessions: PreviousSession[];
+  exerciseHistory?: ExerciseHistory;
   timezone?: string;
   forClient?: { id: string; name: string };
   freeSessionLogId?: string;
@@ -232,8 +217,8 @@ export function WorkoutPlayer({
   const totalPages = pages.length;
   const currentPage = pages[currentExIdx];
 
-  // Most recent previous session
-  const mostRecent = previousSessions[0];
+  // Most recent time this exercise was done (by exercise id, across programs).
+  const lastSessionFor = (exerciseId: string): HistSession | undefined => exerciseHistory[exerciseId]?.[0];
 
   // Restore an in-progress session from the device (runs once, before the
   // start-log and seed effects). If a draft exists we reuse its workout log id
@@ -292,6 +277,16 @@ export function WorkoutPlayer({
     startLog();
   }, [workout.id, freeSessionLogId]);
 
+  // Once we have a log, reset a stale started_at (resumed after a long break) so
+  // the recorded session duration stays sane.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (workoutLogId && !resumedRef.current) {
+      resumedRef.current = true;
+      resumeStaleLog(workoutLogId).catch(() => {});
+    }
+  }, [workoutLogId]);
+
   // Init set entries and exercise notes from most recent session. Skipped when we
   // restored an in-progress draft, so we never clobber what's already entered.
   useEffect(() => {
@@ -304,20 +299,18 @@ export function WorkoutPlayer({
       // Conditioning blocks are logged with a single "Done" (per design), so
       // they get one set entry regardless of the prescribed rounds.
       const numSets = we.block_type === "conditioning" ? 1 : we.sets;
+      const last = lastSessionFor(we.exercises.id);
       initSets[we.id] = Array.from({ length: numSets }, (_, i) => {
-        const prev = mostRecent?.set_logs.find(
-          (p) => p.workout_exercise_id === we.id && p.set_number === i + 1
-        );
+        const prev = last?.sets.find((p) => p.setNumber === i + 1);
         return {
-          reps: prev?.reps_completed?.toString() ?? we.reps.split("-")[0] ?? "",
-          weight: prev?.weight_kg?.toString() ?? we.weight_kg?.toString() ?? "",
+          reps: prev?.reps?.toString() ?? we.reps.split("-")[0] ?? "",
+          weight: prev?.weight?.toString() ?? we.weight_kg?.toString() ?? "",
           completed: false,
           isPR: false,
         };
       });
 
-      const prevExLog = mostRecent?.exercise_session_logs.find((el) => el.workout_exercise_id === we.id);
-      initNotes[we.id] = prevExLog?.notes ?? "";
+      initNotes[we.id] = "";
       initRpe[we.id] = null;
     }
 
@@ -333,7 +326,8 @@ export function WorkoutPlayer({
     setSets(initSets);
     setExerciseNotes(initNotes);
     setExerciseRpe(initRpe);
-  }, [exercises, mostRecent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercises, exerciseHistory]);
 
   // Continuously save the session to the device so nothing is lost on logout,
   // backgrounding the app, or navigating to another tab. Gated on `hydrated` so
@@ -582,11 +576,11 @@ export function WorkoutPlayer({
             const entries = sets[item.id] ?? [];
             const swap = swaps[item.id];
             const displayExercise = swap?.exercise ?? item.exercise;
-            const lastSets = !item.isAdHoc && !swap
-              ? (mostRecent?.set_logs ?? [])
-                  .filter((sl) => sl.workout_exercise_id === item.id)
-                  .sort((a, b) => a.set_number - b.set_number)
-              : [];
+            // Weight history follows the exercise (across programs), including
+            // swaps (history for whatever exercise is shown).
+            const exerciseSessions = exerciseHistory[displayExercise.id] ?? [];
+            const lastSession = exerciseSessions[0];
+            const lastSets = lastSession?.sets ?? [];
             return (
               <div
                 key={item.id}
@@ -655,13 +649,13 @@ export function WorkoutPlayer({
                 {lastSets.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap rounded-lg bg-secondary/40 px-3 py-2">
                     <span className="text-xs font-medium text-muted-foreground shrink-0">Last time</span>
-                    {mostRecent && (
-                      <span className="text-xs text-muted-foreground/70 shrink-0">({formatDate(mostRecent.started_at, timezone)})</span>
+                    {lastSession && (
+                      <span className="text-xs text-muted-foreground/70 shrink-0">({formatDate(lastSession.date, timezone)})</span>
                     )}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {lastSets.map((sl) => (
-                        <span key={sl.set_number} className="text-xs font-medium tabular-nums rounded bg-background border border-border px-1.5 py-0.5">
-                          {sl.weight_kg ? `${sl.weight_kg}kg` : "BW"} × {sl.reps_completed ?? "—"}
+                        <span key={sl.setNumber} className="text-xs font-medium tabular-nums rounded bg-background border border-border px-1.5 py-0.5">
+                          {sl.weight ? `${sl.weight}kg` : "BW"} × {sl.reps ?? "—"}
                         </span>
                       ))}
                     </div>
@@ -747,9 +741,9 @@ export function WorkoutPlayer({
                 </div>
                 )}
 
-                {/* History (program strength exercises only; hidden once swapped) */}
-                {!item.isAdHoc && !swap && item.blockType !== "conditioning" && (
-                  <SessionHistory weId={item.id} sessions={previousSessions} timezone={timezone} />
+                {/* History for this exercise, carried across programs */}
+                {item.blockType !== "conditioning" && (
+                  <SessionHistory sessions={exerciseSessions} timezone={timezone} />
                 )}
 
                 {/* Exercise RPE */}

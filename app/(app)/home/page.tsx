@@ -11,6 +11,7 @@ import { SessionTypeBadge } from "@/components/programs/session-type-badge";
 import { SessionTypeCounts } from "@/components/programs/session-type-counts";
 import { VolumeChart } from "@/components/home/progress-chart";
 import { WorkoutDayList } from "@/components/workouts/workout-day-list";
+import { AddPhotoPrompt } from "@/components/home/add-photo-prompt";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Profile, PersonalRecord, WorkoutLog, Exercise } from "@/lib/types";
@@ -46,11 +47,11 @@ export default async function ClientHomePage() {
 
   const { data: profileData } = await admin
     .from("profiles")
-    .select("role, full_name, coach_id, habit_tracker_url")
+    .select("role, full_name, coach_id, habit_tracker_url, avatar_url")
     .eq("id", user.id)
     .single();
 
-  const profile = profileData as Pick<Profile, "role" | "full_name" | "coach_id" | "habit_tracker_url"> | null;
+  const profile = profileData as Pick<Profile, "role" | "full_name" | "coach_id" | "habit_tracker_url" | "avatar_url"> | null;
   if (profile?.role === "coach") redirect("/dashboard");
 
   const [
@@ -115,7 +116,7 @@ export default async function ClientHomePage() {
   }
 
   // Mini leaderboard — sessions in last 28 days among coach's clients
-  type PeerRow = { id: string; full_name: string | null };
+  type PeerRow = { id: string; full_name: string | null; avatar_url: string | null };
   type MiniEntry = PeerRow & { count: number };
   let miniLeaderboard: MiniEntry[] = [];
   let userRank = 0;
@@ -123,7 +124,7 @@ export default async function ClientHomePage() {
   if (profile?.coach_id) {
     const since = new Date(Date.now() - 28 * 86400000).toISOString();
     const { data: peersData } = await admin
-      .from("profiles").select("id, full_name").eq("coach_id", profile.coach_id).eq("role", "client").eq("archived", false);
+      .from("profiles").select("id, full_name, avatar_url").eq("coach_id", profile.coach_id).eq("role", "client").eq("archived", false);
     const peers = (peersData ?? []) as PeerRow[];
     const peerIds = peers.map(p => p.id);
     const countMap = new Map<string, number>();
@@ -168,6 +169,8 @@ export default async function ClientHomePage() {
         <MessageCircle className="h-4 w-4" />
         Message coach
       </a>
+
+      {!profile?.avatar_url && <AddPhotoPrompt />}
 
       {program ? (
         <Card>
@@ -284,9 +287,17 @@ export default async function ClientHomePage() {
                 const isMe = entry.id === user.id;
                 return (
                   <li key={entry.id} className={cn("flex items-center gap-3 px-6 py-3", isMe && "bg-primary/5")}>
-                    <span className="text-sm font-bold w-5 text-center text-muted-foreground">
+                    <span className="text-sm font-bold w-5 text-center text-muted-foreground shrink-0">
                       {idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}
                     </span>
+                    <div className="h-9 w-9 shrink-0 rounded-full bg-primary/20 overflow-hidden flex items-center justify-center ring-2 ring-border">
+                      {entry.avatar_url ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={entry.avatar_url} alt={entry.full_name ?? ""} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-bold text-primary">{(entry.full_name ?? "?")[0].toUpperCase()}</span>
+                      )}
+                    </div>
                     <p className={cn("flex-1 text-sm", isMe ? "font-semibold" : "font-medium")}>
                       {entry.full_name ?? "Athlete"}{isMe && " (you)"}
                     </p>

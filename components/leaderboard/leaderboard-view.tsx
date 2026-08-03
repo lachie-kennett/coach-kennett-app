@@ -12,12 +12,12 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 
 function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
   return (
-    <div className="h-8 w-8 shrink-0 rounded-full bg-primary/20 overflow-hidden flex items-center justify-center">
+    <div className="h-11 w-11 shrink-0 rounded-full bg-primary/20 overflow-hidden flex items-center justify-center ring-2 ring-border">
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
       ) : (
-        <span className="text-sm font-bold text-primary">{name[0]?.toUpperCase() ?? "?"}</span>
+        <span className="text-base font-bold text-primary">{name[0]?.toUpperCase() ?? "?"}</span>
       )}
     </div>
   );

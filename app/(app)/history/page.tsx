@@ -28,6 +28,8 @@ type LogRow = {
 
 function formatDuration(start: string, end: string) {
   const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+  // Guard against resumed/abandoned sessions with an unreliable start time.
+  if (mins < 0 || mins > 300) return "—";
   if (mins < 60) return `${mins}m`;
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }

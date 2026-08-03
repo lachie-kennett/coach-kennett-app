@@ -78,7 +78,6 @@ export default async function ClientsPage() {
                     </div>
                     <div>
                       <p className="font-medium">{client.full_name ?? "Unnamed"}</p>
-                      <p className="text-sm text-muted-foreground">{client.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -116,7 +115,6 @@ export default async function ClientsPage() {
                     </div>
                     <div>
                       <p className="font-medium">{client.full_name ?? "Unnamed"}</p>
-                      <p className="text-sm text-muted-foreground">{client.email}</p>
                     </div>
                   </div>
                   <Badge variant="secondary" className="shrink-0">Archived</Badge>
