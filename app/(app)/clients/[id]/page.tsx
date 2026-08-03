@@ -10,6 +10,8 @@ import { AssignProgramDialog } from "@/components/clients/assign-program-dialog"
 import { ArchiveClientButton } from "@/components/clients/archive-client-button";
 import { CopyFromClientDialog } from "@/components/programs/copy-from-client-dialog";
 import { getCoachContext, canAccessClient } from "@/lib/coach-context";
+import { ExerciseHistoryBrowser } from "@/components/exercises/exercise-history-browser";
+import { buildAllExerciseHistory } from "@/lib/exercise-history";
 import { ArrowLeft, ArrowRight, Trophy, BookOpen, Clock, Plus } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -101,6 +103,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     admin.from("workout_logs").select("*", { count: "exact", head: true }).eq("client_id", id).not("completed_at", "is", null),
     admin.from("workout_logs").select("*", { count: "exact", head: true }).eq("client_id", id).not("completed_at", "is", null).gte("completed_at", monthStart.toISOString()),
   ]);
+
+  const exerciseHistories = await buildAllExerciseHistory(admin, id);
 
   // Other clients + their programs, so the coach can copy an existing program in.
   const { data: otherClientsData } = await admin
@@ -324,6 +328,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           )}
         </CardContent>
       </Card>
+
+      {exerciseHistories.length > 0 && <ExerciseHistoryBrowser exercises={exerciseHistories} />}
     </div>
   );
 }

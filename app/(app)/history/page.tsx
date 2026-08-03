@@ -5,6 +5,8 @@ import { getUserTimezone } from "@/lib/supabase/get-timezone";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock } from "lucide-react";
 import { HistoryCard, type HistoryEntry } from "@/components/history/history-card";
+import { ExerciseHistoryBrowser } from "@/components/exercises/exercise-history-browser";
+import { buildAllExerciseHistory } from "@/lib/exercise-history";
 import type { Profile } from "@/lib/types";
 
 type SetLogRow = {
@@ -60,6 +62,7 @@ export default async function HistoryPage() {
     .order("completed_at", { ascending: false });
 
   const logs = (logsData ?? []) as unknown as LogRow[];
+  const exerciseHistories = await buildAllExerciseHistory(admin, user.id);
 
   const entries: HistoryEntry[] = logs.map((log) => {
     const setLogs = log.set_logs ?? [];
@@ -103,6 +106,8 @@ export default async function HistoryPage() {
           <span className="text-sm text-muted-foreground">{entries.length} session{entries.length !== 1 ? "s" : ""}</span>
         )}
       </div>
+
+      {exerciseHistories.length > 0 && <ExerciseHistoryBrowser exercises={exerciseHistories} title="By exercise" />}
 
       {entries.length > 0 ? (
         <div className="space-y-3">
