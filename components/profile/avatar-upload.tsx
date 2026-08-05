@@ -10,6 +10,29 @@ interface AvatarUploadProps {
   name: string;
 }
 
+// Downscale + re-encode a photo to a small square-ish JPEG in the browser so
+// uploads stay well under the Server Action body limit (phone photos are large).
+async function resizeImage(file: File, maxSize = 512): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+  const width = Math.round(bitmap.width * scale);
+  const height = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no canvas context");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close?.();
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", 0.85)
+  );
+  if (!blob) throw new Error("encode failed");
+  return new File([blob], "avatar.jpg", { type: "image/jpeg" });
+}
+
 export function AvatarUpload({ currentUrl, name }: AvatarUploadProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl);
   const [isPending, startTransition] = useTransition();
@@ -25,10 +48,11 @@ export function AvatarUpload({ currentUrl, name }: AvatarUploadProps) {
     const localUrl = URL.createObjectURL(file);
     setPreviewUrl(localUrl);
 
-    const formData = new FormData();
-    formData.append("avatar", file);
-
     startTransition(async () => {
+      const upload = await resizeImage(file).catch(() => file);
+      const formData = new FormData();
+      formData.append("avatar", upload);
+
       const result = await uploadAvatar(formData);
       if (result.error) {
         toast.error(result.error);
