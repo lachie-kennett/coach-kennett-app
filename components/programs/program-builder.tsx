@@ -593,7 +593,6 @@ function WorkoutCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
             {renaming ? (
               <Input
                 value={nameInput}
@@ -616,11 +615,11 @@ function WorkoutCard({
                   {workout.name}
                 </CardTitle>
                 <SessionTypeBadge type={workout.session_type} className="shrink-0" />
-                <Badge variant="secondary" className="text-xs shrink-0">{workout.workout_exercises.length} exercises</Badge>
+                <Badge variant="secondary" className="text-xs shrink-0 hidden sm:inline-flex">{workout.workout_exercises.length} exercises</Badge>
                 {(() => {
                   const secs = conditioningTotalSeconds(workout.workout_exercises);
                   return secs > 0 ? (
-                    <Badge variant="secondary" className="text-xs shrink-0 gap-1">
+                    <Badge variant="secondary" className="text-xs shrink-0 gap-1 hidden sm:inline-flex">
                       <Clock className="h-3 w-3" />~{formatSessionTime(secs)}
                     </Badge>
                   ) : null;
