@@ -591,42 +591,31 @@ function WorkoutCard({
   return (
     <Card className={cn(isActive && "ring-1 ring-primary/50")}>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            {renaming ? (
-              <Input
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                onBlur={handleRename}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); handleRename(); }
-                  if (e.key === "Escape") { setNameInput(workout.name); setRenaming(false); }
-                }}
-                autoFocus
-                className="h-7 flex-1 min-w-0 text-base font-semibold"
-              />
-            ) : (
-              <>
-                <CardTitle
-                  className="text-base truncate cursor-text min-w-0"
-                  onClick={() => { setNameInput(workout.name); setRenaming(true); }}
-                  title="Click to rename"
-                >
-                  {workout.name}
-                </CardTitle>
-                <SessionTypeBadge type={workout.session_type} className="shrink-0 hidden sm:inline-flex" />
-                <Badge variant="secondary" className="text-xs shrink-0 hidden sm:inline-flex">{workout.workout_exercises.length} exercises</Badge>
-                {(() => {
-                  const secs = conditioningTotalSeconds(workout.workout_exercises);
-                  return secs > 0 ? (
-                    <Badge variant="secondary" className="text-xs shrink-0 gap-1 hidden sm:inline-flex">
-                      <Clock className="h-3 w-3" />~{formatSessionTime(secs)}
-                    </Badge>
-                  ) : null;
-                })()}
-              </>
-            )}
-          </div>
+        {/* Row 1: name + actions. Actions are fixed-width and sit alone with the
+            (truncating) title so they can never be pushed off / clipped, even in
+            the builder's narrow day column. */}
+        <div className="flex items-center gap-2">
+          {renaming ? (
+            <Input
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={handleRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); handleRename(); }
+                if (e.key === "Escape") { setNameInput(workout.name); setRenaming(false); }
+              }}
+              autoFocus
+              className="h-7 flex-1 min-w-0 text-base font-semibold"
+            />
+          ) : (
+            <CardTitle
+              className="text-base truncate cursor-text min-w-0 flex-1"
+              onClick={() => { setNameInput(workout.name); setRenaming(true); }}
+              title="Click to rename"
+            >
+              {workout.name}
+            </CardTitle>
+          )}
           <div className="flex items-center gap-1 shrink-0">
             {!renaming && (
               <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setNameInput(workout.name); setRenaming(true); }} title="Rename day">
@@ -639,7 +628,7 @@ function WorkoutCard({
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleDuplicateWorkout} title="Duplicate">
               <Copy className="h-3.5 w-3.5" />
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={handleDeleteWorkout}>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={handleDeleteWorkout} title="Delete day">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setExpanded(!expanded)}>
@@ -647,6 +636,21 @@ function WorkoutCard({
             </Button>
           </div>
         </div>
+        {/* Row 2: informational badges, wrapping as needed. */}
+        {!renaming && (
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <SessionTypeBadge type={workout.session_type} className="shrink-0" />
+            <Badge variant="secondary" className="text-xs shrink-0">{workout.workout_exercises.length} exercises</Badge>
+            {(() => {
+              const secs = conditioningTotalSeconds(workout.workout_exercises);
+              return secs > 0 ? (
+                <Badge variant="secondary" className="text-xs shrink-0 gap-1">
+                  <Clock className="h-3 w-3" />~{formatSessionTime(secs)}
+                </Badge>
+              ) : null;
+            })()}
+          </div>
+        )}
       </CardHeader>
 
       {expanded && (
