@@ -19,7 +19,7 @@ export default async function ClientsPage() {
 
   let clientsQuery = admin
     .from("profiles")
-    .select("id, full_name, email, created_at, archived")
+    .select("id, full_name, email, created_at, archived, avatar_url")
     .eq("coach_id", ctx.headCoachId)
     .eq("role", "client")
     .order("full_name");
@@ -29,7 +29,7 @@ export default async function ClientsPage() {
   }
   const { data: clientsData } = await clientsQuery;
 
-  const allClients = clientsData as Pick<Profile, "id" | "full_name" | "email" | "created_at" | "archived">[] | null;
+  const allClients = clientsData as Pick<Profile, "id" | "full_name" | "email" | "created_at" | "archived" | "avatar_url">[] | null;
   const clients = allClients?.filter((c) => !c.archived) ?? [];
   const archivedClients = allClients?.filter((c) => c.archived) ?? [];
 
@@ -54,10 +54,11 @@ export default async function ClientsPage() {
     return `${Math.floor(days / 365)}y ago`;
   }
 
-  const toRow = (c: Pick<Profile, "id" | "full_name" | "email">): ClientRow => ({
+  const toRow = (c: Pick<Profile, "id" | "full_name" | "email" | "avatar_url">): ClientRow => ({
     id: c.id,
     name: c.full_name ?? "",
     email: c.email,
+    avatarUrl: c.avatar_url ?? null,
     lastSeen: formatLastSeen(lastSeenMap.get(c.id)),
   });
   const clientRows = clients.map(toRow);

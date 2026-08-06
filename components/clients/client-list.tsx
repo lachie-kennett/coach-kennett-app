@@ -11,8 +11,45 @@ export type ClientRow = {
   id: string;
   name: string;
   email: string;
+  avatarUrl: string | null;
   lastSeen: string;
 };
+
+// First + last initial (e.g. "Jai Sneddon" → "JS"). Falls back to the first
+// two letters of a single-word name, or the email's first letter.
+function initials(name: string, email: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (email[0] ?? "?").toUpperCase();
+}
+
+function Avatar({
+  name,
+  email,
+  avatarUrl,
+  archived,
+}: {
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  archived?: boolean;
+}) {
+  const base = "flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden text-sm font-semibold";
+  if (avatarUrl) {
+    return (
+      <span className={base}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={avatarUrl} alt={name || email} className="h-full w-full object-cover" />
+      </span>
+    );
+  }
+  return (
+    <span className={`${base} ${archived ? "bg-muted text-muted-foreground" : "bg-primary/20 text-primary"}`}>
+      {initials(name, email)}
+    </span>
+  );
+}
 
 export function ClientList({
   clients,
@@ -51,9 +88,7 @@ export function ClientList({
               <Card className="hover:bg-secondary/30 transition-colors cursor-pointer">
                 <CardContent className="flex items-center justify-between py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
-                      {(client.name || client.email)[0].toUpperCase()}
-                    </div>
+                    <Avatar name={client.name} email={client.email} avatarUrl={client.avatarUrl} />
                     <div>
                       <p className="font-medium">{client.name || "Unnamed"}</p>
                     </div>
@@ -81,9 +116,7 @@ export function ClientList({
               <Card className="opacity-60 hover:opacity-100 hover:bg-secondary/30 transition-all cursor-pointer">
                 <CardContent className="flex items-center justify-between py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
-                      {(client.name || client.email)[0].toUpperCase()}
-                    </div>
+                    <Avatar name={client.name} email={client.email} avatarUrl={client.avatarUrl} archived />
                     <div>
                       <p className="font-medium">{client.name || "Unnamed"}</p>
                     </div>
