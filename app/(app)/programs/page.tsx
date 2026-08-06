@@ -4,10 +4,9 @@ import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
-import { ArrowRight, BookOpen, Plus } from "lucide-react";
-import { AssignTemplateDialog } from "@/components/programs/assign-template-dialog";
+import { BookOpen, Plus } from "lucide-react";
 import { SessionTemplatesManager } from "@/components/programs/session-templates-manager";
-import { ProgramNameEditor } from "@/components/programs/program-name-editor";
+import { ProgramList } from "@/components/programs/program-list";
 import { cn } from "@/lib/utils";
 import { getCoachContext } from "@/lib/coach-context";
 import type { Program } from "@/lib/types";
@@ -65,31 +64,7 @@ export default async function ProgramsPage() {
       </div>
 
       {programs && programs.length > 0 ? (
-        <div className="space-y-2">
-          {programs.map((p) => (
-            <Card key={p.id} className="hover:bg-secondary/30 transition-colors">
-              <CardContent className="flex items-center justify-between gap-3 py-4">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/20">
-                    <BookOpen className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <ProgramNameEditor programId={p.id} name={p.name} className="font-medium" />
-                    {p.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-1">{p.description}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Link href={`/programs/${p.id}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}>
-                    Open <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <AssignTemplateDialog templateId={p.id} templateName={p.name} clients={clients} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <ProgramList programs={programs} clients={clients} />
       ) : (
         <Card>
           <CardContent className="py-12 text-center">

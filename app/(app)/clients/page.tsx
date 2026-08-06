@@ -3,9 +3,9 @@ import Link from "next/link";
 import { getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { AddClientDialog } from "@/components/clients/add-client-dialog";
+import { ClientList, type ClientRow } from "@/components/clients/client-list";
 import { getCoachContext } from "@/lib/coach-context";
 import type { Profile } from "@/lib/types";
 
@@ -35,7 +35,7 @@ export default async function ClientsPage() {
 
   // Fetch last_sign_in_at for each client from auth.users
   const lastSeenMap = new Map<string, string | null>();
-  if (clients && clients.length > 0) {
+  if (allClients && allClients.length > 0) {
     const { data: { users } = { users: [] } } = await admin.auth.admin.listUsers({ perPage: 1000 });
     for (const u of users) {
       lastSeenMap.set(u.id, u.last_sign_in_at ?? null);
@@ -54,6 +54,15 @@ export default async function ClientsPage() {
     return `${Math.floor(days / 365)}y ago`;
   }
 
+  const toRow = (c: Pick<Profile, "id" | "full_name" | "email">): ClientRow => ({
+    id: c.id,
+    name: c.full_name ?? "",
+    email: c.email,
+    lastSeen: formatLastSeen(lastSeenMap.get(c.id)),
+  });
+  const clientRows = clients.map(toRow);
+  const archivedRows = archivedClients.map(toRow);
+
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -66,63 +75,15 @@ export default async function ClientsPage() {
         {!ctx.isAssistant && <AddClientDialog />}
       </div>
 
-      {clients.length > 0 ? (
-        <div className="space-y-2">
-          {clients.map((client) => (
-            <Link key={client.id} href={`/clients/${client.id}`}>
-              <Card className="hover:bg-secondary/30 transition-colors cursor-pointer">
-                <CardContent className="flex items-center justify-between py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
-                      {(client.full_name ?? client.email)[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-medium">{client.full_name ?? "Unnamed"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-muted-foreground hidden sm:block">
-                      {formatLastSeen(lastSeenMap.get(client.id))}
-                    </span>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      ) : archivedClients.length === 0 ? (
+      {clientRows.length === 0 && archivedRows.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <UserPlus className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">No clients yet. Add your first client to get started.</p>
           </CardContent>
         </Card>
-      ) : null}
-
-      {archivedClients.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground pt-2">
-            Archived ({archivedClients.length})
-          </h2>
-          {archivedClients.map((client) => (
-            <Link key={client.id} href={`/clients/${client.id}`}>
-              <Card className="opacity-60 hover:opacity-100 hover:bg-secondary/30 transition-all cursor-pointer">
-                <CardContent className="flex items-center justify-between py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
-                      {(client.full_name ?? client.email)[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-medium">{client.full_name ?? "Unnamed"}</p>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="shrink-0">Archived</Badge>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+      ) : (
+        <ClientList clients={clientRows} archived={archivedRows} />
       )}
     </div>
   );
