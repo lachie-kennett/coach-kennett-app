@@ -609,7 +609,7 @@ function WorkoutCard({
             ) : (
               <>
                 <CardTitle
-                  className="text-base truncate cursor-text"
+                  className="text-base truncate cursor-text min-w-0"
                   onClick={() => { setNameInput(workout.name); setRenaming(true); }}
                   title="Click to rename"
                 >
@@ -628,7 +628,7 @@ function WorkoutCard({
               </>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {!renaming && (
               <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setNameInput(workout.name); setRenaming(true); }} title="Rename day">
                 <Pencil className="h-3.5 w-3.5" />
