@@ -614,7 +614,7 @@ function WorkoutCard({
                 >
                   {workout.name}
                 </CardTitle>
-                <SessionTypeBadge type={workout.session_type} className="shrink-0" />
+                <SessionTypeBadge type={workout.session_type} className="shrink-0 hidden sm:inline-flex" />
                 <Badge variant="secondary" className="text-xs shrink-0 hidden sm:inline-flex">{workout.workout_exercises.length} exercises</Badge>
                 {(() => {
                   const secs = conditioningTotalSeconds(workout.workout_exercises);
