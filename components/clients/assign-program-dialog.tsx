@@ -14,6 +14,17 @@ import { assignTemplate } from "@/lib/actions/programs";
 
 interface Program { id: string; name: string }
 
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+// Adds days to a YYYY-MM-DD string using local date parts (no timezone drift).
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+
 export function AssignProgramDialog({
   clientId,
   coachId: _coachId,
@@ -26,8 +37,15 @@ export function AssignProgramDialog({
   const [open, setOpen] = useState(false);
   const [programId, setProgramId] = useState("");
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
-  const [endDate, setEndDate] = useState("");
+  const [weeks, setWeeks] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Length runs to the Sunday of the final week (weeks * 7 - 1 days).
+  const weeksNum = parseInt(weeks, 10);
+  const endDate = weeks && weeksNum > 0 ? addDays(startDate, weeksNum * 7 - 1) : null;
+  const endLabel = endDate
+    ? new Date(endDate).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })
+    : null;
 
   async function handleAssign(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +56,7 @@ export function AssignProgramDialog({
       templateId: programId,
       clientId,
       startDate,
-      endDate: endDate || null,
+      endDate,
     });
     if (result.error) {
       toast.error(result.error);
@@ -46,7 +64,7 @@ export function AssignProgramDialog({
       toast.success("Program assigned");
       setOpen(false);
       setProgramId("");
-      setEndDate("");
+      setWeeks("");
     }
     setLoading(false);
   }
@@ -86,16 +104,21 @@ export function AssignProgramDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end-date">End date <span className="text-muted-foreground">(optional)</span></Label>
+              <Label htmlFor="assign-weeks">Length (weeks)</Label>
               <Input
-                id="end-date"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                min={startDate}
+                id="assign-weeks"
+                type="number"
+                min="1"
+                inputMode="numeric"
+                value={weeks}
+                onChange={(e) => setWeeks(e.target.value)}
+                placeholder="e.g. 8"
               />
             </div>
           </div>
+          {endLabel && (
+            <p className="text-xs text-muted-foreground -mt-1">Ends {endLabel}</p>
+          )}
           <Button type="submit" className="w-full" disabled={loading || !programId}>
             {loading ? "Assigning…" : "Assign program"}
           </Button>
