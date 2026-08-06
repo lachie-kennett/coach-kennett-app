@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { ProgramBuilder } from "@/components/programs/program-builder";
 import { ProgramNameEditor } from "@/components/programs/program-name-editor";
+import { ProgramLengthEditor } from "@/components/programs/program-length-editor";
 import { cn } from "@/lib/utils";
 import { getCoachContext, canAccessClient } from "@/lib/coach-context";
 import type { Program } from "@/lib/types";
@@ -83,6 +84,19 @@ export default async function ProgramDetailPage({
     .order("created_at", { ascending: false });
   const sessionTemplates = (sessionTemplatesData ?? []) as { id: string; name: string; session_type: string | null }[];
 
+  // Client-specific programs carry a length (start/end dates) on their
+  // assignment; templates (no client_id) do not, so the length editor is hidden.
+  let assignment: { start_date: string; end_date: string | null } | null = null;
+  if (program.client_id) {
+    const { data: assignmentData } = await admin
+      .from("client_programs")
+      .select("start_date, end_date")
+      .eq("client_id", program.client_id)
+      .eq("program_id", id)
+      .maybeSingle();
+    assignment = (assignmentData as { start_date: string; end_date: string | null } | null) ?? null;
+  }
+
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4">
       <div className="flex items-center gap-3">
@@ -97,6 +111,15 @@ export default async function ProgramDetailPage({
           )}
         </div>
       </div>
+
+      {program.client_id && assignment && (
+        <ProgramLengthEditor
+          clientId={program.client_id}
+          programId={id}
+          startDate={assignment.start_date}
+          endDate={assignment.end_date}
+        />
+      )}
 
       <ProgramBuilder
         programId={id}
