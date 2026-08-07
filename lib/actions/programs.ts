@@ -362,6 +362,55 @@ export async function updateAssignmentDates(params: {
   return {};
 }
 
+// Removes a training block from a client. Training history is never destroyed:
+// if the block has any logged sessions we only remove the assignment (the
+// program rows stay so the logs still resolve), otherwise we delete the empty
+// program entirely so nothing is left lying around.
+export async function deleteClientProgram(params: {
+  clientId: string;
+  programId: string;
+}): Promise<{ error?: string; keptHistory?: boolean }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated" };
+  const admin = createAdminClient();
+  if (!(await ownsProgram(admin, params.programId, user.id))) return { error: "Not authorized" };
+
+  // Do any logged sessions exist against this program's days?
+  const { data: workoutRows } = await admin
+    .from("program_workouts")
+    .select("id")
+    .eq("program_id", params.programId);
+  const workoutIds = ((workoutRows ?? []) as { id: string }[]).map((w) => w.id);
+
+  let hasLogs = false;
+  if (workoutIds.length > 0) {
+    const { count } = await admin
+      .from("workout_logs")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", params.clientId)
+      .in("workout_id", workoutIds);
+    hasLogs = (count ?? 0) > 0;
+  }
+
+  // Always remove the assignment so the block disappears from the client.
+  const { error: unassignError } = await admin
+    .from("client_programs")
+    .delete()
+    .eq("client_id", params.clientId)
+    .eq("program_id", params.programId);
+  if (unassignError) return { error: unassignError.message };
+
+  // Only delete the program itself when it holds no history (deleting it would
+  // otherwise cascade-delete the client's logged sessions and PRs).
+  if (!hasLogs) {
+    const { error: delError } = await admin.from("programs").delete().eq("id", params.programId);
+    if (delError) return { error: delError.message };
+  }
+
+  revalidatePath(`/clients/${params.clientId}`);
+  return { keptHistory: hasLogs };
+}
+
 // ── Program builder mutations ──────────────────────────────────────────────
 // These verify the current coach owns the target program, then use the admin
 // client to bypass RLS (same pattern as exercises). Returns { error } strings

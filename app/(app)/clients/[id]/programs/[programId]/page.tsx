@@ -11,6 +11,7 @@ import { ProgramLengthEditor } from "@/components/programs/program-length-editor
 import { SaveAsTemplateButton } from "@/components/programs/save-as-template-button";
 import { CopyProgramDialog } from "@/components/programs/copy-program-dialog";
 import { DuplicateProgramButton } from "@/components/programs/duplicate-program-button";
+import { DeleteBlockButton } from "@/components/programs/delete-block-button";
 import { conditioningSummary, conditioningTotalSeconds, formatSessionTime } from "@/lib/workout-format";
 import { getCoachContext, canAccessClient } from "@/lib/coach-context";
 import { cn } from "@/lib/utils";
@@ -148,6 +149,11 @@ export default async function ClientProgramPage({
           >
             <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
           </Link>
+          <DeleteBlockButton
+            clientId={clientId}
+            programId={programId}
+            programName={assignment.programs?.name ?? "Program"}
+          />
         </div>
       </div>
 
