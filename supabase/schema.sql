@@ -16,6 +16,7 @@ create table profiles (
   role user_role not null default 'client',
   coach_id uuid references profiles(id) on delete set null,
   archived boolean not null default false,
+  last_active_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

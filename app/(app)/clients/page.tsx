@@ -19,7 +19,7 @@ export default async function ClientsPage() {
 
   let clientsQuery = admin
     .from("profiles")
-    .select("id, full_name, email, created_at, archived, avatar_url")
+    .select("id, full_name, email, created_at, archived, avatar_url, last_active_at")
     .eq("coach_id", ctx.headCoachId)
     .eq("role", "client")
     .order("full_name");
@@ -29,11 +29,12 @@ export default async function ClientsPage() {
   }
   const { data: clientsData } = await clientsQuery;
 
-  const allClients = clientsData as Pick<Profile, "id" | "full_name" | "email" | "created_at" | "archived" | "avatar_url">[] | null;
+  const allClients = clientsData as (Pick<Profile, "id" | "full_name" | "email" | "created_at" | "archived" | "avatar_url"> & { last_active_at: string | null })[] | null;
   const clients = allClients?.filter((c) => !c.archived) ?? [];
   const archivedClients = allClients?.filter((c) => c.archived) ?? [];
 
-  // Fetch last_sign_in_at for each client from auth.users
+  // Fallback only: last_sign_in_at from auth.users, used when a client has no
+  // last_active_at yet (hasn't opened the app since activity tracking shipped).
   const lastSeenMap = new Map<string, string | null>();
   if (allClients && allClients.length > 0) {
     const { data: { users } = { users: [] } } = await admin.auth.admin.listUsers({ perPage: 1000 });
@@ -54,12 +55,16 @@ export default async function ClientsPage() {
     return `${Math.floor(days / 365)}y ago`;
   }
 
-  const toRow = (c: Pick<Profile, "id" | "full_name" | "email" | "avatar_url">): ClientRow => ({
+  const toRow = (
+    c: Pick<Profile, "id" | "full_name" | "email" | "avatar_url"> & { last_active_at: string | null }
+  ): ClientRow => ({
     id: c.id,
     name: c.full_name ?? "",
     email: c.email,
     avatarUrl: c.avatar_url ?? null,
-    lastSeen: formatLastSeen(lastSeenMap.get(c.id)),
+    // Prefer real app activity; fall back to last sign-in for clients who
+    // haven't opened the app since activity tracking was added.
+    lastSeen: formatLastSeen(c.last_active_at ?? lastSeenMap.get(c.id)),
   });
   const clientRows = clients.map(toRow);
   const archivedRows = archivedClients.map(toRow);

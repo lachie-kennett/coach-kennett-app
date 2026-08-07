@@ -27,6 +27,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/paused");
   }
 
+  // Stamp "last active" so the coach's client list reflects real app usage.
+  // Sessions are long-lived, so auth's last_sign_in_at is unreliable. Throttled
+  // to ~30 min to avoid a write on every navigation.
+  const lastActive = (profile as unknown as { last_active_at: string | null }).last_active_at;
+  if (!lastActive || Date.now() - new Date(lastActive).getTime() > 30 * 60 * 1000) {
+    await admin
+      .from("profiles")
+      .update({ last_active_at: new Date().toISOString() } as never)
+      .eq("id", user.id);
+  }
+
   // Head coaches and assistant coaches both use the coach-style nav.
   const isStaff = profile.role === "coach" || profile.role === "assistant";
 
